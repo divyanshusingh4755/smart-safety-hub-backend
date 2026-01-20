@@ -2,12 +2,15 @@ package shared
 
 import (
 	"net/http"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type UserClaims struct {
 	UserID      string   `json:"sub"`
 	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
+	Token       *jwt.Token
 }
 
 func HasScope(requriedScope string) func(http.Handler) http.Handler {

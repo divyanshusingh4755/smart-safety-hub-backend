@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/smart-safety-hub/backend/shared"
 	"go.uber.org/zap"
 )
 
 type UserService struct {
 	logger *zap.Logger
 	repo   *UserRepo
-	jwt    *JwtManager
+	jwt    *shared.JwtManager
 }
 
-func NewUserService(logger *zap.Logger, repo *UserRepo, jwt *JwtManager) *UserService {
+func NewUserService(logger *zap.Logger, repo *UserRepo, jwt *shared.JwtManager) *UserService {
 	return &UserService{
 		logger: logger,
 		jwt:    jwt,
@@ -113,8 +113,13 @@ func (u *UserService) Login(ctx context.Context, req *LoginDTO) (*ResponseDTO, e
 		return nil, fmt.Errorf("Error came while getting user roles permissions data from DB: %v", err)
 	}
 
+	permissions := &shared.RolesPermissions{
+		Role:        rolesPermissions.Role,
+		Permissions: rolesPermissions.Permissions,
+	}
+
 	// 3. Generate New Tokens
-	accessToken, err := u.jwt.GenerateToken(userResponse.ID, rolesPermissions, 15*time.Minute)
+	accessToken, err := u.jwt.GenerateToken(userResponse.ID, permissions, 15*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("Error came while generating access token: %v", err)
 	}
@@ -167,29 +172,14 @@ func (u *UserService) ForgotPassword(ctx context.Context, req *ForgotPasswordDTO
 }
 
 func (u *UserService) ResetPassword(ctx context.Context, req *ResetPasswordDTO) (*GenericResponseDTO, error) {
-	var userID any
-	var user User
-
-	token, err := u.jwt.Verify(req.Token)
+	claims, err := u.jwt.Verify(req.Token)
 	if err != nil {
 		return nil, fmt.Errorf("Something went wrong. Try again: %v", err)
 	}
 
-	if !token.Valid {
-		return nil, errors.New("Token expired please resend email")
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		userID = claims["sub"]
-	}
-
-	if s, ok := userID.(string); ok {
-		user = User{
-			ID:       s,
-			Password: req.Password,
-		}
-	} else {
-		return nil, fmt.Errorf("Something went wrong. Please try again: %v", err)
+	user := User{
+		ID:       claims.UserID,
+		Password: req.Password,
 	}
 
 	if err = user.HashPassword(); err != nil {
@@ -244,8 +234,13 @@ func (u *UserService) RefreshToken(ctx context.Context, request RefreshTokenDTO)
 		return nil, fmt.Errorf("Error came while getting user roles permissions data from DB: %v", err)
 	}
 
+	permissions := &shared.RolesPermissions{
+		Role:        rolesPermissions.Role,
+		Permissions: rolesPermissions.Permissions,
+	}
+
 	// Generate Access and Refresh Token
-	accessToken, err := u.jwt.GenerateToken(user.ID, rolesPermissions, 15*time.Minute)
+	accessToken, err := u.jwt.GenerateToken(user.ID, permissions, 15*time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("Error came while generating access token: %v", err)
 	}

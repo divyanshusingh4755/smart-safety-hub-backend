@@ -42,8 +42,8 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	}
 
 	// Create a shared JWT Manager
-	jwtManager, _ := user.NewJWTManager(cfg.PrivateKey, cfg.PublicKey, l)
-	jwtMiddleware := user.JWTMiddleware(jwtManager)
+	jwtManager, _ := shared.NewJWTManager(cfg.PrivateKey, cfg.PublicKey, l)
+	jwtMiddleware := shared.JWTMiddleware(jwtManager)
 
 	// Initialize validator
 	v := validator.New(validator.WithRequiredStructEnabled())
