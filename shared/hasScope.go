@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -18,6 +19,8 @@ func HasScope(requriedScope string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Pull claims out of context
 			claims, ok := r.Context().Value(UserClaimsKey).(*UserClaims)
+			fmt.Println("ok", ok)
+			fmt.Println("claims", claims)
 			if !ok {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
