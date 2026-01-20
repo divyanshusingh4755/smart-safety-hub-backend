@@ -14,6 +14,11 @@ const UserClaimsKey contextKey = "userClaims"
 func JWTMiddleware(jm *JwtManager) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			auth := r.Header.Get("Authorization")
 			log.Println("auth", auth)
 			if auth == "" {
