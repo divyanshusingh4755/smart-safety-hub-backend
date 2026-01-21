@@ -21,7 +21,7 @@ func NewCategoryRepo(db *sqlx.DB) *CategoryRepo {
 }
 
 func (r *CategoryRepo) SaveCategory(ctx context.Context, request CategoryRequestDTO) error {
-	query := "INSERT INTO categories(name, slug, parent_id) VALUES ($1,$2,NULLIF($3, ''))"
+	query := "INSERT INTO categories(name, slug, parent_id) VALUES ($1,$2,NULLIF($3, '')::uuid)"
 	if _, err := r.db.ExecContext(ctx, query, request.Name, request.Slug, request.ParentId); err != nil {
 		return shared.PostgresError(err)
 	}
