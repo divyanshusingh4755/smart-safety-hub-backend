@@ -31,7 +31,6 @@ func decodeKey(envVar string) string {
 
 func main() {
 	godotenv.Load()
-
 	privateKey := decodeKey("PRIVATE_KEY_BASE64")
 	publicKey := decodeKey("PUBLIC_KEY_BASE64")
 

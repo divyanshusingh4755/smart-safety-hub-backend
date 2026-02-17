@@ -26,9 +26,9 @@ type Product struct {
 	Name        string        `db:"name"`
 	Slug        string        `db:"slug"`
 	Description *string       `db:"description"`
-	SellerID    string        `db:"seller_id"`
-	BrandID     string        `db:"brand_id"`
-	CategoryID  string        `db:"category_id"`
+	SellerID    *string       `db:"seller_id"`
+	BrandID     *string       `db:"brand_id"`
+	CategoryID  *string       `db:"category_id"`
 	Status      ProductStatus `db:"status"`
 	CreatedAt   time.Time     `db:"created_at"`
 	UpdatedAt   time.Time     `db:"updated_at"`

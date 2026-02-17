@@ -12,6 +12,7 @@ import (
 	"github.com/smart-safety-hub/backend/internal/modules/brand"
 	"github.com/smart-safety-hub/backend/internal/modules/categories"
 	"github.com/smart-safety-hub/backend/internal/modules/products"
+	"github.com/smart-safety-hub/backend/internal/modules/social"
 	"github.com/smart-safety-hub/backend/internal/modules/user"
 	"github.com/smart-safety-hub/backend/shared"
 	"go.uber.org/zap"
@@ -40,6 +41,9 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	if err != nil {
 		log.Fatalf("Falied to init s3: %v", err)
 	}
+
+	user.InitSessionStore()
+	user.InitOAuthProviders()
 
 	// Create a shared JWT Manager
 	jwtManager, _ := shared.NewJWTManager(cfg.PrivateKey, cfg.PublicKey, l)
@@ -72,6 +76,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	productRepo := products.NewProductRepo(sqlxDB)
 	productService := products.NewProductService(l, productRepo)
 	productRestHandler := products.NewRestHandler(productService, v)
+
+	// Social Accounts
+	socialRepo := social.NewRepository(sqlxDB)
+	socialService := social.NewSocialService(l, socialRepo)
+	socialRestHandler := social.NewRestHandler(socialService, v)
 
 	// GRPC
 	grpcSrv := grpc.NewServer()
@@ -131,6 +140,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 
 		// Product SEO
 		v1.Get("/get-product-seo/{id}", productRestHandler.GetProductSEO)
+
+		// Social
+		v1.Get("/auth/social/{provider}/callback", socialRestHandler.Callback)
+		v1.Get("/auth/social/{provider}", socialRestHandler.BeginAuth)
+
 		v1.Group(func(r chi.Router) {
 			r.Use(jwtMiddleware)
 			// Protected Routes
@@ -161,6 +175,17 @@ func Bootstrap(cfg Config) (*Container, func()) {
 
 			// Product SEO
 			r.With(shared.HasScope("catalog:update")).Post("/add-product-seo/{id}", productRestHandler.SaveProductSEO)
+
+			// Social
+			r.Get("/auth/social/{provider}/prepare", socialRestHandler.PrepareAuth)
+			r.Get("/auth/social/connections", socialRestHandler.HandleListConnections)
+
+			// Create post
+			r.Post("/posts/create", socialRestHandler.HandleCreatePost)
+
+			// Import Products
+			r.Post("/product/import", productRestHandler.ImportProduct)
+
 		})
 	})
 

@@ -75,9 +75,9 @@ func (r *ProductRepo) GetProductBySlug(ctx context.Context, slug string) (*Produ
 func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters) ([]GetProducts, error) {
 	query := `SELECT 
 		p.id, p.name, p.slug, p.description, p.status, 
-		b.name AS brand_name, 
-		c.name AS category_name,
-		media.url AS image_url,
+		COALESCE(b.name, '') AS brand_name, 
+		COALESCE(c.name, '') AS category_name,
+		COALESCE(media.url, '') AS image_url,
 		COUNT(*) OVER() AS total_count
 		FROM products p 
 		LEFT JOIN brands b ON p.brand_id = b.id 
@@ -135,7 +135,7 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 
 	query = r.db.Rebind(query)
 
-	var products []GetProducts
+	var products []GetProducts = []GetProducts{}
 	if err := r.db.SelectContext(ctx, &products, query, args...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("product not found")
@@ -365,7 +365,12 @@ func (r *ProductRepo) GetProductMedia(ctx context.Context, productId string) ([]
 	return productMedia, nil
 }
 
-func (r *ProductRepo) SaveProductSEO(ctx context.Context, seo ProductSEO) error {
+func (r *ProductRepo) SaveProductSEO(ctx context.Context, seo ProductSEO, isPublish ...bool) error {
+	shouldPublish := true
+	if len(isPublish) > 0 {
+		shouldPublish = isPublish[0]
+	}
+
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return shared.PostgresError(err)
@@ -387,10 +392,12 @@ func (r *ProductRepo) SaveProductSEO(ctx context.Context, seo ProductSEO) error 
 		return shared.PostgresError(err)
 	}
 
-	publishProduct := `UPDATE products SET status = 'ACTIVE' WHERE id = $1`
-	_, err = tx.ExecContext(ctx, publishProduct, seo.ProductID)
-	if err != nil {
-		return shared.PostgresError(err)
+	if shouldPublish {
+		publishProduct := `UPDATE products SET status = 'ACTIVE' WHERE id = $1`
+		_, err = tx.ExecContext(ctx, publishProduct, seo.ProductID)
+		if err != nil {
+			return shared.PostgresError(err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

@@ -158,6 +158,21 @@ CREATE TABLE product_seo (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE social_accounts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform VARCHAR(50) NOT NULL,
+    provider_id VARCHAR(255) NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- prevents a user from having duplicate entries
+    UNIQUE(user_id, platform)
+)
+
 -- Create Indexes for faster searches
 CREATE INDEX idx_products_slug ON products(slug);
 CREATE INDEX idx_categories_slug ON categories(slug);

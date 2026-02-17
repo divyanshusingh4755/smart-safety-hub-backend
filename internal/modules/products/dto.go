@@ -6,9 +6,9 @@ type ProductRequestDTO struct {
 	Name        string        `json:"name" validate:"required"`
 	Slug        string        `json:"slug" validate:"required"`
 	Description *string       `json:"description"`
-	SellerID    string        `json:"seller_id" validate:"required"`
-	BrandID     string        `json:"brand_id" validate:"required"`
-	CategoryID  string        `json:"category_id" validate:"required"`
+	SellerID    *string       `json:"seller_id" validate:"required"`
+	BrandID     *string       `json:"brand_id" validate:"required"`
+	CategoryID  *string       `json:"category_id" validate:"required"`
 	Status      ProductStatus `json:"status" validate:"required"`
 }
 
@@ -17,9 +17,9 @@ type ProductResponseDTO struct {
 	Name        string        `json:"name"`
 	Slug        string        `json:"slug"`
 	Description *string       `json:"description"`
-	SellerID    string        `json:"seller_id"`
-	BrandID     string        `json:"brand_id"`
-	CategoryID  string        `json:"category_id"`
+	SellerID    *string       `json:"seller_id"`
+	BrandID     *string       `json:"brand_id"`
+	CategoryID  *string       `json:"category_id"`
 	Status      ProductStatus `json:"status"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
@@ -123,4 +123,15 @@ type GenericResponseDTO struct {
 	ID      *string `json:"product_id"`
 	Status  string  `json:"success"`
 	Message string  `json:"message"`
+}
+
+type ImportProductDTO struct {
+	ProductName        string                  `json:"product_name"`
+	Slug               string                  `json:"slug"`
+	ProductDescription string                  `json:"product_description"`
+	Attribute          []ProductAttributeArray `json:"attributes"`
+	MetaTitle          string                  `json:"meta_title"`
+	MetaDescription    string                  `json:"meta_description"`
+	Keywords           []string                `json:"keywords"`
+	SellerID           string                  `json:"seller_id"`
 }

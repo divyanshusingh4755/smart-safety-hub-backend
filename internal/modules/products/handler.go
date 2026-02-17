@@ -164,6 +164,7 @@ func (h *RestHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.service.GetAllProducts(r.Context(), request)
 	if err != nil {
+		fmt.Println("err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -365,4 +366,29 @@ func (h *RestHandler) GetProductSEO(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
+}
+
+func (h *RestHandler) ImportProduct(w http.ResponseWriter, r *http.Request) {
+	var importProduct ImportProductDTO
+
+	if err := json.NewDecoder(r.Body).Decode(&importProduct); err != nil {
+		http.Error(w, "Invalid JSON format: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if importProduct.ProductName == "" {
+		http.Error(w, "Product Name is required", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.service.ImportProduct(r.Context(), importProduct)
+	if err != nil {
+		fmt.Println("err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
 }

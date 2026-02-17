@@ -245,7 +245,12 @@ func (b *ProductService) GetProductVariants(ctx context.Context, productId strin
 	return &response, nil
 }
 
-func (b *ProductService) SaveProductSEO(ctx context.Context, productId string, request ProductSEODTO) error {
+func (b *ProductService) SaveProductSEO(ctx context.Context, productId string, request ProductSEODTO, isPublish ...bool) error {
+	shouldPublish := true
+	if len(isPublish) > 0 {
+		shouldPublish = isPublish[0]
+	}
+
 	keywordsJSON, err := json.Marshal(request.Keywords)
 	if err != nil {
 		return fmt.Errorf("failed to marshal keywords: %v", err)
@@ -259,7 +264,7 @@ func (b *ProductService) SaveProductSEO(ctx context.Context, productId string, r
 		Keywords:        json.RawMessage(keywordsJSON),
 	}
 
-	return b.repo.SaveProductSEO(ctx, seoEntity)
+	return b.repo.SaveProductSEO(ctx, seoEntity, shouldPublish)
 }
 
 func (b *ProductService) GetProductSEO(ctx context.Context, productId string) (*ProductSEODTO, error) {
@@ -282,4 +287,46 @@ func (b *ProductService) GetProductSEO(ctx context.Context, productId string) (*
 		OgImageUrl:      result.OgImageUrl,
 		Keywords:        keywords,
 	}, nil
+}
+
+func (b *ProductService) ImportProduct(ctx context.Context, req ImportProductDTO) (string, error) {
+
+	request := ProductRequestDTO{
+		Name:        req.ProductName,
+		Slug:        req.Slug,
+		Description: &req.ProductDescription,
+		SellerID:    &req.SellerID,
+		BrandID:     nil,
+		CategoryID:  nil,
+		Status:      "DRAFT",
+	}
+
+	productId, err := b.repo.SaveProduct(ctx, request)
+
+	if err != nil {
+		return "", fmt.Errorf("Error while saving product to DB: %w", err)
+	}
+
+	attribute := ProductAttributeDTO{
+		ProductID:  *productId,
+		Attributes: req.Attribute,
+	}
+
+	productSEO := ProductSEODTO{
+		ProductID:       *productId,
+		MetaTitle:       req.MetaTitle,
+		MetaDescription: req.MetaDescription,
+		OgImageUrl:      "",
+		Keywords:        req.Keywords,
+	}
+
+	if _, err = b.AddProductAttribute(ctx, attribute); err != nil {
+		return "", fmt.Errorf("Error came while saving product Attribute: %w", err)
+	}
+
+	if err = b.SaveProductSEO(ctx, *productId, productSEO, false); err != nil {
+		return "", fmt.Errorf("Error came while saving product SEO: %w", err)
+	}
+
+	return "Product Saved Successfully", nil
 }

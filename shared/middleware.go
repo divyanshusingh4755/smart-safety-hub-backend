@@ -2,7 +2,6 @@ package shared
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -20,7 +19,6 @@ func JWTMiddleware(jm *JwtManager) func(next http.Handler) http.Handler {
 			}
 
 			auth := r.Header.Get("Authorization")
-			log.Println("auth", auth)
 			if auth == "" {
 				http.Error(w, "Missing Token", 401)
 				return
@@ -31,7 +29,6 @@ func JWTMiddleware(jm *JwtManager) func(next http.Handler) http.Handler {
 				return
 			}
 			claims, err := jm.Verify(parts[1])
-			log.Println("cleaimss", claims)
 			if err != nil {
 				http.Error(w, "Invalid Token", 401)
 				return
