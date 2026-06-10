@@ -23,6 +23,11 @@ type ProductResponseDTO struct {
 	Status      ProductStatus `json:"status"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
+
+	BrandName    *string `json:"brand_name"`
+	BrandSlug    *string `json:"brand_slug"`
+	CategoryName *string `json:"category_name"`
+	CategorySlug *string `json:"category_slug"`
 }
 
 type ProductListResponse struct {

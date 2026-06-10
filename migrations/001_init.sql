@@ -73,11 +73,28 @@ CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) UNIQUE NOT NULL,
+    logo_url TEXT,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
     parent_id UUID REFERENCES categories(id),
     level INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE categories
+ADD COLUMN IF NOT EXISTS logo_url TEXT,
+ADD COLUMN IF NOT EXISTS description TEXT,
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- Optional: ensure default for is_active is true
+ALTER TABLE categories
+ALTER COLUMN is_active SET DEFAULT TRUE;
+
+-- Optional: update existing rows to active if NULL
+UPDATE categories
+SET is_active = TRUE
+WHERE is_active IS NULL;
 
 CREATE TYPE status_enum AS ENUM('DRAFT', 'ACTIVE', 'ARCHIVED');
 
@@ -93,6 +110,10 @@ CREATE TABLE products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_products_slug ON products(slug);
+CREATE INDEX idx_products_brand_id ON products(brand_id);
+CREATE INDEX idx_products_category_id ON products(category_id);
 
 CREATE TABLE products_attributes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

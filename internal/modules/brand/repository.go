@@ -60,9 +60,22 @@ func (r *BrandRepo) GetBrandByID(ctx context.Context, brandId string) (*Brand, e
 	return &brand, nil
 }
 
+func (r *BrandRepo) GetBrandBySlug(ctx context.Context, brandSlug string) (*Brand, error) {
+	var brand Brand
+	query := "SELECT * FROM brands WHERE slug=$1 AND is_active = true"
+	if err := r.db.GetContext(ctx, &brand, query, brandSlug); err != nil {
+		fmt.Println("err", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("Brand not found")
+		}
+		return nil, shared.PostgresError(err)
+	}
+	return &brand, nil
+}
+
 func (r *BrandRepo) GetAllBrand(limit, offset int) (*BrandList, error) {
 	var brands []Brand
-	query := "SELECT id, name, slug, logo_url, is_active, website_url, created_at, COUNT(*) OVER() as total_count FROM brands ORDER BY id DESC LIMIT $1 OFFSET $2"
+	query := "SELECT id, name, description, slug, logo_url, is_active, website_url, created_at, COUNT(*) OVER() as total_count FROM brands ORDER BY id DESC LIMIT $1 OFFSET $2"
 	if err := r.db.Select(&brands, query, limit, offset); err != nil {
 		return nil, shared.PostgresError(err)
 	}

@@ -52,7 +52,7 @@ func (h *RestHandler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request CategoryRequestDTO
+	var request UpdateCategoryDTO
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -96,7 +96,6 @@ func (h *RestHandler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 
 func (h *RestHandler) GetCategoryByID(w http.ResponseWriter, r *http.Request) {
 	categoryId := chi.URLParam(r, "id")
-
 	if categoryId == "" {
 		http.Error(w, "ID is required", http.StatusBadRequest)
 		return
@@ -114,10 +113,31 @@ func (h *RestHandler) GetCategoryByID(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (h *RestHandler) GetCategoryBySlug(w http.ResponseWriter, r *http.Request) {
+	categorySlug := chi.URLParam(r, "slug")
+
+	if categorySlug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.service.GetCategoryBySlug(r.Context(), categorySlug)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusBadRequest)
+	}
+
+}
+
 func (h *RestHandler) GetAllCategory(w http.ResponseWriter, r *http.Request) {
 	response, err := h.service.GetAllCategory(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {

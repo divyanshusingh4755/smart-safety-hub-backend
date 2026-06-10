@@ -38,6 +38,7 @@ func main() {
 		GrpcAddr:   ":50051",
 		HTTPAddr:   ":8080",
 		DBURL:      "postgres://postgres:root@localhost:5432/smart_safety_hub?sslmode=disable",
+		RedisURL:   "redis://localhost:6379/0",
 		PrivateKey: privateKey,
 		PublicKey:  publicKey,
 	}

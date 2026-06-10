@@ -61,9 +61,30 @@ func (r *ProductRepo) GetProductByID(ctx context.Context, productID string) (*Pr
 	return &product, nil
 }
 
-func (r *ProductRepo) GetProductBySlug(ctx context.Context, slug string) (*Product, error) {
-	var product Product
-	query := `SELECT * FROM products WHERE slug = $1 AND status='ACTIVE' LIMIT 1`
+func (r *ProductRepo) GetProductBySlug(ctx context.Context, slug string) (*ProductDetail, error) {
+	var product ProductDetail
+	query := `
+		SELECT
+		    p.id,
+		    p.name,
+		    p.slug,
+		    p.description,
+		    p.seller_id,
+		    p.brand_id,
+		    p.category_id,
+		    p.status,
+		    p.created_at,
+		    p.updated_at,
+		    b.name AS brand_name,
+		    c.name AS category_name,
+		    b.slug AS brand_slug,
+		    c.slug AS category_slug
+		FROM products p
+		LEFT JOIN brands b ON p.brand_id = b.id
+		LEFT JOIN categories c ON p.category_id = c.id
+		WHERE p.slug = $1 AND p.status = 'ACTIVE'
+		LIMIT 1
+		`
 
 	err := r.db.GetContext(ctx, &product, query, slug)
 	if err != nil {
@@ -73,14 +94,14 @@ func (r *ProductRepo) GetProductBySlug(ctx context.Context, slug string) (*Produ
 }
 
 func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters) ([]GetProducts, error) {
-	query := `SELECT 
-		p.id, p.name, p.slug, p.description, p.status, 
-		COALESCE(b.name, '') AS brand_name, 
+	query := `SELECT
+		p.id, p.name, p.slug, p.description, p.status,
+		COALESCE(b.name, '') AS brand_name,
 		COALESCE(c.name, '') AS category_name,
 		COALESCE(media.url, '') AS image_url,
 		COUNT(*) OVER() AS total_count
-		FROM products p 
-		LEFT JOIN brands b ON p.brand_id = b.id 
+		FROM products p
+		LEFT JOIN brands b ON p.brand_id = b.id
 		LEFT JOIN categories c ON p.category_id = c.id
 		LEFT JOIN LATERAL (
 		SELECT url
@@ -293,8 +314,8 @@ func (r *ProductRepo) GetProductVariants(ctx context.Context, productId string) 
 	variants_data AS (
 	SELECT pv.id, pv.sku, pv.price, pv.weight, pv.is_active, jsonb_agg(pov.value) AS option_values FROM product_variants pv JOIN variant_option_values vov ON pv.id = vov.variant_id JOIN product_option_values pov ON vov.option_value_id = pov.id WHERE pv.product_id = $1 GROUP BY pv.id, pv.sku, pv.price, pv.weight, pv.is_active
 	)
-	SELECT 
-	$1 AS product_id, 
+	SELECT
+	$1 AS product_id,
 	(SELECT jsonb_agg(jsonb_build_object('name', name, 'values', values )) FROM product_options_data) AS options,
 	(SELECT jsonb_agg(jsonb_build_object('id', id, 'sku', sku, 'price', price, 'weight', weight, 'is_active', is_active, 'option_values', option_values)) FROM variants_data) AS variants;
 	`
@@ -353,9 +374,9 @@ func (r *ProductRepo) GetProductMedia(ctx context.Context, productId string) ([]
 	var productMedia []ProductMedia
 
 	query := `
-		SELECT id, product_id, variant_id, url, type, display_order 
-		FROM product_media 
-		WHERE product_id = $1 
+		SELECT id, product_id, variant_id, url, type, display_order
+		FROM product_media
+		WHERE product_id = $1
 		ORDER BY display_order ASC`
 
 	if err := r.db.SelectContext(ctx, &productMedia, query, productId); err != nil {
@@ -410,8 +431,8 @@ func (r *ProductRepo) SaveProductSEO(ctx context.Context, seo ProductSEO, isPubl
 func (r *ProductRepo) GetProductSEO(ctx context.Context, productId string) (*ProductSEO, error) {
 	var seo ProductSEO
 	query := `
-		SELECT product_id, meta_title, meta_description, og_image_url, keywords 
-		FROM product_seo 
+		SELECT product_id, meta_title, meta_description, og_image_url, keywords
+		FROM product_seo
 		WHERE product_id = $1`
 
 	err := r.db.GetContext(ctx, &seo, query, productId)

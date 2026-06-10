@@ -115,6 +115,26 @@ func (h *RestHandler) GetBrandByID(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (h *RestHandler) GetBrandBySlug(w http.ResponseWriter, r *http.Request) {
+	brandSlug := chi.URLParam(r, "slug")
+
+	if brandSlug == "" {
+		http.Error(w, "Slug is required", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.service.GetBrandBySlug(r.Context(), brandSlug)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusBadRequest)
+	}
+
+}
+
 func (h *RestHandler) GetAllBrand(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	page := query.Get("page")

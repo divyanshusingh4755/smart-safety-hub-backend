@@ -15,6 +15,7 @@ import (
 	"github.com/smart-safety-hub/backend/internal/modules/social"
 	"github.com/smart-safety-hub/backend/internal/modules/user"
 	"github.com/smart-safety-hub/backend/shared"
+	"github.com/smart-safety-hub/backend/shared/cache"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -23,6 +24,7 @@ type Config struct {
 	GrpcAddr   string
 	HTTPAddr   string
 	DBURL      string
+	RedisURL   string
 	PrivateKey string
 	PublicKey  string
 }
@@ -37,6 +39,10 @@ type Container struct {
 func Bootstrap(cfg Config) (*Container, func()) {
 	l := shared.NewLogger()
 	sqlxDB := shared.Connect(cfg.DBURL, l)
+	redisClient, err := cache.NewRedisClient(cfg.RedisURL, l)
+	if err != nil {
+		log.Fatalf("Falied to init redis: %v", err)
+	}
 	s3Client, err := shared.NewS3Client()
 	if err != nil {
 		log.Fatalf("Falied to init s3: %v", err)
@@ -44,6 +50,7 @@ func Bootstrap(cfg Config) (*Container, func()) {
 
 	user.InitSessionStore()
 	user.InitOAuthProviders()
+	cacheStore := cache.New(redisClient)
 
 	// Create a shared JWT Manager
 	jwtManager, _ := shared.NewJWTManager(cfg.PrivateKey, cfg.PublicKey, l)
@@ -64,17 +71,17 @@ func Bootstrap(cfg Config) (*Container, func()) {
 
 	// brand
 	brandRepo := brand.NewBrandRepo(sqlxDB)
-	brandService := brand.NewBrandService(l, brandRepo)
+	brandService := brand.NewBrandService(l, brandRepo, cacheStore)
 	brandRestHandler := brand.NewRestHandler(brandService, v)
 
 	// Category
 	categoryRepo := categories.NewCategoryRepo(sqlxDB)
-	categoryService := categories.NewCategoryService(l, categoryRepo)
+	categoryService := categories.NewCategoryService(l, categoryRepo, cacheStore)
 	categoryRestHandler := categories.NewRestHandler(categoryService, v)
 
 	// Product
 	productRepo := products.NewProductRepo(sqlxDB)
-	productService := products.NewProductService(l, productRepo)
+	productService := products.NewProductService(l, productRepo, cacheStore)
 	productRestHandler := products.NewRestHandler(productService, v)
 
 	// Social Accounts
@@ -117,17 +124,21 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		v1.Post("/auth/refresh", userRestHandler.RefreshToken)
 
 		// Brand
-		v1.Get("/get-brand/{id}", brandRestHandler.GetBrandByID)
+		v1.Get("/get-brand/id/{id}", brandRestHandler.GetBrandByID)
+		v1.Get("/get-brand/slug/{slug}", brandRestHandler.GetBrandBySlug)
 		v1.Get("/get-all-brands", brandRestHandler.GetAllBrand)
 
 		// Category
-		v1.Get("/get-category/{id}", categoryRestHandler.GetCategoryByID)
+		v1.Get("/get-category/id/{id}", categoryRestHandler.GetCategoryByID)
+		v1.Get("/get-category/slug/{slug}", categoryRestHandler.GetCategoryBySlug)
 		v1.Get("/get-all-category", categoryRestHandler.GetAllCategory)
 
 		// Product
 		v1.Get("/get-product/id/{id}", productRestHandler.GetProductByID)
 		v1.Get("/get-product/slug/{slug}", productRestHandler.GetProductBySlug)
 		v1.Get("/get-all-products", productRestHandler.GetAllProducts)
+		v1.Get("/products/category/{slug}", productRestHandler.GetProductsByCategory)
+		v1.Get("/products/brand/{slug}", productRestHandler.GetProductsByBrand)
 
 		// Product Attribute
 		v1.Get("/get-product-attribute/{id}", productRestHandler.GetProductAttributeByID)
@@ -155,6 +166,7 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.With(shared.HasScope("catalog:delete")).Delete("/delete-brand/{id}", brandRestHandler.DeleteBrand)
 
 			// Categories
+			r.With(shared.HasScope("catalog:create")).Post("/upload-category-image", uploadHandler.UploadImage)
 			r.With(shared.HasScope("catalog:create")).Post("/create-category", categoryRestHandler.CreateCategory)
 			r.With(shared.HasScope("catalog:update")).Patch("/update-category/{id}", categoryRestHandler.UpdateCategory)
 			r.With(shared.HasScope("catalog:delete")).Delete("/delete-category/{id}", categoryRestHandler.DeleteCategory)
@@ -199,6 +211,7 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	cleanup := func() {
 		l.Sync()
 		sqlxDB.Close()
+		redisClient.Close()
 	}
 
 	return container, cleanup

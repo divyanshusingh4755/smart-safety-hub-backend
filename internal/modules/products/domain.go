@@ -34,6 +34,14 @@ type Product struct {
 	UpdatedAt   time.Time     `db:"updated_at"`
 }
 
+type ProductDetail struct {
+	Product
+	BrandName    *string `db:"brand_name"`
+	BrandSlug    *string `db:"brand_slug"`
+	CategoryName *string `db:"category_name"`
+	CategorySlug *string `db:"category_slug"`
+}
+
 type GetProducts struct {
 	ID           string        `db:"id"`
 	Name         string        `db:"name"`

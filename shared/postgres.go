@@ -20,6 +20,6 @@ func Connect(url string, logger *zap.Logger) *sqlx.DB {
 		logger.Sugar().Fatalf("db pinged: %v", err)
 	}
 
-	logger.Sugar().Info("DB connected successful")
+	logger.Sugar().Info("DB connected successfully")
 	return db
 }

@@ -20,18 +20,105 @@ func NewCategoryRepo(db *sqlx.DB) *CategoryRepo {
 	}
 }
 
+func (r *CategoryRepo) GetLevelByParent(
+	ctx context.Context,
+	parentID *string,
+) (int, error) {
+
+	if parentID == nil {
+		return 0, nil
+	}
+
+	var level int
+
+	err := r.db.GetContext(
+		ctx,
+		&level,
+		`SELECT level + 1
+		 FROM categories
+		 WHERE id = $1
+		 AND is_active = true`,
+		*parentID,
+	)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, errors.New("parent category not found")
+	}
+
+	return level, err
+}
+
 func (r *CategoryRepo) SaveCategory(ctx context.Context, request CategoryRequestDTO) error {
-	query := "INSERT INTO categories(name, slug, parent_id) VALUES ($1,$2,NULLIF($3, '')::uuid)"
-	if _, err := r.db.ExecContext(ctx, query, request.Name, request.Slug, request.ParentId); err != nil {
+	if request.ParentID != nil && *request.ParentID == "" {
+		request.ParentID = nil
+	}
+
+	level, err := r.GetLevelByParent(ctx, request.ParentID)
+	if err != nil {
+		return shared.PostgresError(err)
+	}
+
+	query := `
+		INSERT INTO categories (
+		    name,
+		    slug,
+		    logo_url,
+		    description,
+		    is_active,
+		    parent_id,
+		    level
+		)
+		VALUES (
+		    $1,
+		    $2,
+		    $3,
+		    $4,
+		    COALESCE($5, TRUE),
+		    NULLIF($6, '')::uuid,
+		    $7
+		)
+		`
+	if _, err = r.db.ExecContext(
+		ctx,
+		query,
+		request.Name,
+		request.Slug,
+		request.LogoURL,
+		request.Description,
+		request.IsActive,
+		request.ParentID,
+		level,
+	); err != nil {
 		return shared.PostgresError(err)
 	}
 
 	return nil
 }
 
-func (r *CategoryRepo) UpdateCategory(ctx context.Context, categoryID string, request CategoryRequestDTO) error {
-	query := "UPDATE categories SET name=COALESCE(NULLIF($1, ''), name), slug=COALESCE(NULLIF($2, ''), slug), parent_id=COALESCE($3, parent_id) WHERE id=$4"
-	if _, err := r.db.ExecContext(ctx, query, request.Name, request.Slug, request.ParentId, categoryID); err != nil {
+func (r *CategoryRepo) UpdateCategory(ctx context.Context, categoryID string, request UpdateCategoryDTO) error {
+	query := `
+		UPDATE categories
+		SET
+		    name = COALESCE($1, name),
+		    slug = COALESCE($2, slug),
+		    logo_url = COALESCE($3, logo_url),
+		    description = COALESCE($4, description),
+		    is_active = COALESCE($5, is_active),
+		    parent_id = COALESCE(NULLIF($6, '')::uuid, parent_id),
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = $7
+		`
+	if _, err := r.db.ExecContext(
+		ctx,
+		query,
+		request.Name,
+		request.Slug,
+		request.LogoURL,
+		request.Description,
+		request.IsActive,
+		request.ParentID,
+		categoryID,
+	); err != nil {
 		return shared.PostgresError(err)
 	}
 
@@ -39,8 +126,16 @@ func (r *CategoryRepo) UpdateCategory(ctx context.Context, categoryID string, re
 }
 
 func (r *CategoryRepo) DeleteCategory(ctx context.Context, categoryID string) error {
-	query := "DELETE FROM categories WHERE id=$1"
-	if _, err := r.db.ExecContext(ctx, query, categoryID); err != nil {
+	query := `
+	UPDATE categories
+	SET
+		is_active = false,
+		updated_at = CURRENT_TIMESTAMP
+	WHERE id = $1
+	`
+
+	_, err := r.db.ExecContext(ctx, query, categoryID)
+	if err != nil {
 		return shared.PostgresError(err)
 	}
 
@@ -49,8 +144,26 @@ func (r *CategoryRepo) DeleteCategory(ctx context.Context, categoryID string) er
 
 func (r *CategoryRepo) GetCategoryByID(ctx context.Context, categoryID string) (*Category, error) {
 	var category Category
-	query := "SELECT * FROM categories WHERE id=$1"
+	query := `SELECT *
+		FROM categories
+		WHERE id=$1`
 	if err := r.db.GetContext(ctx, &category, query, categoryID); err != nil {
+		fmt.Printf("SQL ERROR: %+v\n", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("Category not found")
+		}
+		return nil, shared.PostgresError(err)
+	}
+	return &category, nil
+}
+
+func (r *CategoryRepo) GetCategoryBySlug(ctx context.Context, categorySlug string) (*Category, error) {
+	var category Category
+	query := `SELECT *
+		FROM categories
+		WHERE slug=$1
+		AND is_active = true`
+	if err := r.db.GetContext(ctx, &category, query, categorySlug); err != nil {
 		fmt.Println("err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("Category not found")
@@ -60,9 +173,12 @@ func (r *CategoryRepo) GetCategoryByID(ctx context.Context, categoryID string) (
 	return &category, nil
 }
 
-func (r *CategoryRepo) GetAllCategory(ctx context.Context) ([]Category, error) {
-	var categories []Category
-	query := "SELECT id, name, slug, parent_id,level, created_at, updated_at FROM categories"
+func (r *CategoryRepo) GetAllCategory(ctx context.Context) ([]CategoryWithParentName, error) {
+	var categories []CategoryWithParentName
+	query := `
+	        SELECT c.*, p.name AS parent_name
+	        FROM categories c
+	        LEFT JOIN categories p ON c.parent_id = p.id`
 	if err := r.db.SelectContext(ctx, &categories, query); err != nil {
 		return nil, shared.PostgresError(err)
 	}
