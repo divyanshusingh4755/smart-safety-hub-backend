@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"log"
 
 	"github.com/go-chi/chi/v5"
@@ -51,6 +52,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	user.InitSessionStore()
 	user.InitOAuthProviders()
 	cacheStore := cache.New(redisClient)
+
+	ctx := context.Background()
+	if err := cacheStore.InitProductListVersion(ctx); err != nil {
+		log.Printf("failed to init product list version: %v", err)
+	}
 
 	// Create a shared JWT Manager
 	jwtManager, _ := shared.NewJWTManager(cfg.PrivateKey, cfg.PublicKey, l)

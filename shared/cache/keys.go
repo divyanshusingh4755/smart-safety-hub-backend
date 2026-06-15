@@ -2,6 +2,8 @@ package cache
 
 import "fmt"
 
+const ProductListVersionKey = "products:list:version"
+
 func ProductById(id string) string {
 	return fmt.Sprintf("product:id:%s", id)
 }

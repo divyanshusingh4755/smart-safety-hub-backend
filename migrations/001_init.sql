@@ -111,10 +111,6 @@ CREATE TABLE products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_products_slug ON products(slug);
-CREATE INDEX idx_products_brand_id ON products(brand_id);
-CREATE INDEX idx_products_category_id ON products(category_id);
-
 CREATE TABLE products_attributes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID REFERENCES products(id) ON DELETE CASCADE,

@@ -87,3 +87,22 @@ func (c *RedisCache) Scan(ctx context.Context, match string) ([]string, error) {
 
 	return keys, nil
 }
+
+func (c *RedisCache) Incr(ctx context.Context, key string) (int64, error) {
+	return c.client.Incr(ctx, key).Result()
+}
+
+func (c *RedisCache) GetVersion(ctx context.Context) int64 {
+	val, err := c.client.Get(ctx, ProductListVersionKey).Int64()
+	if err != nil {
+		return 1
+	}
+	if val <= 0 {
+		return 1
+	}
+	return val
+}
+
+func (c *RedisCache) InitProductListVersion(ctx context.Context) error {
+	return c.client.SetNX(ctx, ProductListVersionKey, 1, 0).Err()
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	"github.com/smart-safety-hub/backend/shared/cache"
 	"go.uber.org/zap"
@@ -39,11 +40,19 @@ func (b *ProductService) CreateProduct(ctx context.Context, request ProductReque
 }
 
 func (b *ProductService) UpdateProduct(ctx context.Context, productId string, request ProductRequestDTO) (*GenericResponseDTO, error) {
+	old, err := b.repo.GetProductByID(ctx, productId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch old product: %w", err)
+	}
+
 	if err := b.repo.UpdateProduct(ctx, productId, request); err != nil {
 		return nil, fmt.Errorf("Error came while saving it to DB: %v", err)
 	}
 
-	b.inValidateProductCache(ctx, productId, request.Slug)
+	if old != nil {
+		b.inValidateProductCache(ctx, productId, old.Slug)
+	}
+
 	b.invalidateListCache(ctx)
 
 	return &GenericResponseDTO{
@@ -136,9 +145,8 @@ func (b *ProductService) GetProductBySlug(ctx context.Context, slug string) (*Pr
 }
 
 func (b *ProductService) GetAllProducts(ctx context.Context, request ProductFilters) (*ProductListResponse, error) {
-	filtersBytes, _ := json.Marshal(request)
-
-	cacheKey := cache.ProductList(string(filtersBytes))
+	version := b.cache.GetVersion(ctx)
+	cacheKey := buildProductListCacheKey(request, version)
 
 	var cached ProductListResponse
 	if err := b.cache.Get(ctx, cacheKey, &cached); err == nil {
@@ -436,13 +444,32 @@ func (b *ProductService) inValidateProductCache(ctx context.Context, ProductById
 }
 
 func (b *ProductService) invalidateListCache(ctx context.Context) {
-	keys, err := b.cache.Scan(ctx, "products:list:*")
-	if err != nil {
-		b.logger.Warn("failed to scan cache keys", zap.Error(err))
-		return
+	if _, err := b.cache.Incr(ctx, cache.ProductListVersionKey); err != nil {
+		b.logger.Warn("failed to increment product list version", zap.Error(err))
+	}
+}
+
+func buildProductListCacheKey(r ProductFilters, version int64) string {
+	brand := ""
+	if len(r.Brand) > 0 {
+		brand = r.Brand[0]
 	}
 
-	if len(keys) > 0 {
-		_ = b.cache.Delete(ctx, keys...)
+	category := ""
+	if len(r.Category) > 0 {
+		category = r.Category[0]
 	}
+
+	search := url.QueryEscape(r.Search)
+
+	return fmt.Sprintf(
+		"products:list:v%d:p:%d:l:%d:s:%s:b:%s:c:%s:q:%s",
+		version,
+		r.Page,
+		r.Limit,
+		r.Status,
+		brand,
+		category,
+		search,
+	)
 }
