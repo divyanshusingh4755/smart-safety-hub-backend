@@ -205,6 +205,8 @@ func (b *ProductService) AddProductAttribute(ctx context.Context, request Produc
 		return nil, fmt.Errorf("Error came while saving it to DB: %v", err)
 	}
 
+	b.inValidateProductCache(ctx, request.ProductID, "")
+
 	return &GenericResponseDTO{
 		ID:      &request.ProductID,
 		Status:  "success",
@@ -250,6 +252,8 @@ func (b *ProductService) SyncProductVariants(ctx context.Context, productId stri
 		return nil, fmt.Errorf("Error came while getting data from DB: %v", err)
 	}
 
+	b.inValidateProductCache(ctx, productId, "")
+
 	return &GenericResponseDTO{
 		ID:      &productId,
 		Status:  "success",
@@ -262,6 +266,8 @@ func (b *ProductService) AddProductMedia(ctx context.Context, productId string, 
 	if err != nil {
 		return nil, fmt.Errorf("Error came while getting data from DB: %v", err)
 	}
+
+	b.inValidateProductCache(ctx, productId, "")
 
 	return &GenericResponseDTO{
 		ID:      &productId,
@@ -351,7 +357,13 @@ func (b *ProductService) SaveProductSEO(ctx context.Context, productId string, r
 		Keywords:        json.RawMessage(keywordsJSON),
 	}
 
-	return b.repo.SaveProductSEO(ctx, seoEntity, shouldPublish)
+	err = b.repo.SaveProductSEO(ctx, seoEntity, shouldPublish)
+	if err != nil {
+		return err
+	}
+
+	b.inValidateProductCache(ctx, productId, "")
+	return nil
 }
 
 func (b *ProductService) GetProductSEO(ctx context.Context, productId string) (*ProductSEODTO, error) {
