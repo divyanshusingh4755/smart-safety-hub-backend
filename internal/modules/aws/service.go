@@ -30,7 +30,7 @@ func NewUploadService(s3Client *s3.Client) *UploadService {
 
 func (u *UploadService) UploadImage(ctx context.Context, file multipart.File, header *multipart.FileHeader, bucketName string) (*UploadResponse, error) {
 	if !isValidFileType(file, header) {
-		return nil, errors.New("only image (PNG, JPEG, WebP) and PDF files are allowed")
+		return nil, errors.New("only image (PNG, JPEG, WebP, AVIF) and PDF files are allowed")
 	}
 
 	if _, err := file.Seek(0, 0); err != nil {
@@ -85,6 +85,7 @@ func isValidFileType(file multipart.File, header *multipart.FileHeader) bool {
 		"image/png":       true,
 		"image/jpeg":      true,
 		"image/webp":      true,
+		"image/avif":      true,
 		"application/pdf": true, // PDF Support added
 	}
 

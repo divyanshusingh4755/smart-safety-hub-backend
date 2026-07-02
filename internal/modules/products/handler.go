@@ -151,7 +151,7 @@ func (h *RestHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 		Search:   query.Get("search"),
 		Status:   query.Get("status"),
 		Page:     1,
-		Limit:    48,
+		Limit:    50,
 	}
 
 	if p, err := strconv.Atoi(query.Get("page")); err == nil && p > 0 {
@@ -177,17 +177,26 @@ func (h *RestHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 func (h *RestHandler) GetProductsByCategory(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 
-	fmt.Println("slug", slug)
-
 	page := 1
 	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
 		page = p
 	}
 
+	limit := 50
+	if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "ACTIVE"
+	}
+
 	request := ProductFilters{
 		Category: []string{slug},
 		Page:     page,
-		Limit:    48,
+		Limit:    limit,
+		Status:   status,
 	}
 
 	response, err := h.service.GetAllProducts(r.Context(), request)
@@ -196,6 +205,7 @@ func (h *RestHandler) GetProductsByCategory(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -207,10 +217,21 @@ func (h *RestHandler) GetProductsByBrand(w http.ResponseWriter, r *http.Request)
 		page = p
 	}
 
+	limit := 50
+	if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "ACTIVE"
+	}
+
 	request := ProductFilters{
-		Brand: []string{slug},
-		Page:  page,
-		Limit: 48,
+		Category: []string{slug},
+		Page:     page,
+		Limit:    limit,
+		Status:   status,
 	}
 
 	response, err := h.service.GetAllProducts(r.Context(), request)

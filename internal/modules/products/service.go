@@ -153,15 +153,9 @@ func (b *ProductService) GetAllProducts(ctx context.Context, request ProductFilt
 		return &cached, nil
 	}
 
-	resp, err := b.repo.GetAllProducts(ctx, request)
-	fmt.Print("res", resp)
+	resp, totalCount, err := b.repo.GetAllProducts(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("Error came while getting data from DB: %v", err)
-	}
-
-	totalCount := 0
-	if len(resp) > 0 {
-		totalCount = resp[0].TotalCount
 	}
 
 	productsDTO := make([]GetProductsDTO, 0, len(resp))

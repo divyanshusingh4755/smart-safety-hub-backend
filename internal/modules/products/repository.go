@@ -93,78 +93,113 @@ func (r *ProductRepo) GetProductBySlug(ctx context.Context, slug string) (*Produ
 	return &product, nil
 }
 
-func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters) ([]GetProducts, error) {
-	query := `SELECT
-		p.id, p.name, p.slug, p.description, p.status,
-		COALESCE(b.name, '') AS brand_name,
-		COALESCE(c.name, '') AS category_name,
-		COALESCE(media.url, '') AS image_url,
-		COUNT(*) OVER() AS total_count
-		FROM products p
-		LEFT JOIN brands b ON p.brand_id = b.id
-		LEFT JOIN categories c ON p.category_id = c.id
-		LEFT JOIN LATERAL (
-		SELECT url
-		FROM product_media pm
-		WHERE pm.product_id = p.id AND type = 'image'
-		ORDER BY display_order ASC
-		LIMIT 1
-		) media ON true
-		 WHERE 1=1
-		`
+func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters) ([]GetProducts, int, error) {
+	// 1. Base strings for both queries
+	baseQuery := ` FROM products p
+        LEFT JOIN brands b ON p.brand_id = b.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN LATERAL (
+            SELECT url
+            FROM product_media pm
+            WHERE pm.product_id = p.id AND type = 'image'
+            ORDER BY display_order ASC
+            LIMIT 1
+        ) media ON true
+        WHERE 1=1`
 
 	var args []interface{}
+	var whereClauses string
 
+	// 2. Build dynamic WHERE clauses
 	if request.Status != "" {
-		query += " AND p.status = ?"
+		whereClauses += " AND p.status = ?"
 		args = append(args, request.Status)
 	}
 
 	if len(request.Category) > 0 {
 		q, inArgs, err := sqlx.In(" AND c.slug IN (?)", request.Category)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-
-		query += q
+		whereClauses += q
 		args = append(args, inArgs...)
 	}
 
 	if len(request.Brand) > 0 {
 		q, inArgs, err := sqlx.In(" AND b.slug IN (?)", request.Brand)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-
-		query += q
+		whereClauses += q
 		args = append(args, inArgs...)
 	}
 
 	if request.Search != "" {
-		query += " AND (p.name ILIKE ? OR p.description ILIKE ?)"
+		whereClauses += " AND (p.name ILIKE ? OR p.description ILIKE ?)"
 		searchTerm := "%" + request.Search + "%"
 		args = append(args, searchTerm, searchTerm)
 	}
 
-	query += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
+	// 3. GET TOTAL COUNT FIRST (Using the exact same filters, without pagination)
+	countQuery := r.db.Rebind("SELECT COUNT(p.id)" + baseQuery + whereClauses)
+	var totalCount int
+	if err := r.db.GetContext(ctx, &totalCount, countQuery, args...); err != nil {
+		return nil, 0, shared.PostgresError(err)
+	}
+
+	// If total count is 0, don't even bother running the product query
+	if totalCount == 0 {
+		return []GetProducts{}, 0, nil
+	}
+
+	// 4. GET THE ACTUAL PRODUCTS FOR THIS PAGE
+	selectFields := `SELECT p.id, p.name, p.slug, p.description, p.status,
+        COALESCE(b.name, '') AS brand_name,
+        COALESCE(c.name, '') AS category_name,
+        COALESCE(media.url, '') AS image_url`
+
+	productQuery := selectFields + baseQuery + whereClauses + ` 
+        ORDER BY 
+            CASE c.slug
+                WHEN 'head-protection' THEN 1
+                WHEN 'eye-protection' THEN 2
+                WHEN 'hearing-protection' THEN 3
+                WHEN 'respiratory-protection' THEN 4
+                WHEN 'welding-ppe' THEN 5
+                WHEN 'high-visibility-safety-wear' THEN 6
+                WHEN 'body-protection' THEN 7
+                WHEN 'fire-resistant-clothing' THEN 8
+                WHEN 'chemical-protective-clothing' THEN 9
+                WHEN 'hand-protection' THEN 10
+                WHEN 'cut-resistant-protection' THEN 11
+                WHEN 'fall-protection' THEN 12
+                WHEN 'foot-protection' THEN 13
+                WHEN 'electrical-safety-ppe' THEN 14
+                WHEN 'first-aid-emergency' THEN 15
+                ELSE 999 
+            END ASC, 
+            p.created_at DESC 
+        LIMIT ? OFFSET ?`
 
 	if request.Limit <= 0 {
 		request.Limit = 40
 	}
 	offset := (request.Page - 1) * request.Limit
-	args = append(args, request.Limit, offset)
 
-	query = r.db.Rebind(query)
+	// Append pagination arguments only to the final product query execution
+	productArgs := append(args, request.Limit, offset)
+	productQuery = r.db.Rebind(productQuery)
 
 	var products []GetProducts = []GetProducts{}
-	if err := r.db.SelectContext(ctx, &products, query, args...); err != nil {
+	if err := r.db.SelectContext(ctx, &products, productQuery, productArgs...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("product not found")
+			return []GetProducts{}, 0, nil
 		}
-		return nil, shared.PostgresError(err)
+		return nil, 0, shared.PostgresError(err)
 	}
 
-	return products, nil
+	// Return products array, the accurate count, and no error
+	return products, totalCount, nil
 }
 
 func (r *ProductRepo) AddProductAttribute(ctx context.Context, productID string, request []ProductAttributeArrayDTO) error {
