@@ -145,11 +145,16 @@ func (h *RestHandler) GetProductBySlug(w http.ResponseWriter, r *http.Request) {
 func (h *RestHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 
+	status := query.Get("status")
+	if status == "" {
+		status = "ACTIVE"
+	}
+
 	request := ProductFilters{
 		Category: query["category"],
 		Brand:    query["brand"],
 		Search:   query.Get("search"),
-		Status:   query.Get("status"),
+		Status:   status,
 		Page:     1,
 		Limit:    50,
 	}
@@ -228,10 +233,10 @@ func (h *RestHandler) GetProductsByBrand(w http.ResponseWriter, r *http.Request)
 	}
 
 	request := ProductFilters{
-		Category: []string{slug},
-		Page:     page,
-		Limit:    limit,
-		Status:   status,
+		Brand:  []string{slug},
+		Page:   page,
+		Limit:  limit,
+		Status: status,
 	}
 
 	response, err := h.service.GetAllProducts(r.Context(), request)

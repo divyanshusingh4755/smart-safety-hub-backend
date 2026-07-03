@@ -94,7 +94,6 @@ func (r *ProductRepo) GetProductBySlug(ctx context.Context, slug string) (*Produ
 }
 
 func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters) ([]GetProducts, int, error) {
-	// 1. Base strings for both queries
 	baseQuery := ` FROM products p
         LEFT JOIN brands b ON p.brand_id = b.id
         LEFT JOIN categories c ON p.category_id = c.id
@@ -110,7 +109,6 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 	var args []interface{}
 	var whereClauses string
 
-	// 2. Build dynamic WHERE clauses
 	if request.Status != "" {
 		whereClauses += " AND p.status = ?"
 		args = append(args, request.Status)
@@ -140,24 +138,30 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 		args = append(args, searchTerm, searchTerm)
 	}
 
-	// 3. GET TOTAL COUNT FIRST (Using the exact same filters, without pagination)
+	// 1. GET TOTAL COUNT FIRST (Arguments map completely correctly here)
 	countQuery := r.db.Rebind("SELECT COUNT(p.id)" + baseQuery + whereClauses)
 	var totalCount int
 	if err := r.db.GetContext(ctx, &totalCount, countQuery, args...); err != nil {
 		return nil, 0, shared.PostgresError(err)
 	}
 
-	// If total count is 0, don't even bother running the product query
 	if totalCount == 0 {
 		return []GetProducts{}, 0, nil
 	}
 
-	// 4. GET THE ACTUAL PRODUCTS FOR THIS PAGE
+	// Default pagination settings
+	if request.Limit <= 0 {
+		request.Limit = 50
+	}
+	offset := (request.Page - 1) * request.Limit
+
+	// 2. GET THE ACTUAL PRODUCTS FOR THIS PAGE
 	selectFields := `SELECT p.id, p.name, p.slug, p.description, p.status,
         COALESCE(b.name, '') AS brand_name,
         COALESCE(c.name, '') AS category_name,
         COALESCE(media.url, '') AS image_url`
 
+	// Add LIMIT and OFFSET placeholders directly into the final string
 	productQuery := selectFields + baseQuery + whereClauses + ` 
         ORDER BY 
             CASE c.slug
@@ -181,12 +185,6 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
             p.created_at DESC 
         LIMIT ? OFFSET ?`
 
-	if request.Limit <= 0 {
-		request.Limit = 40
-	}
-	offset := (request.Page - 1) * request.Limit
-
-	// Append pagination arguments only to the final product query execution
 	productArgs := append(args, request.Limit, offset)
 	productQuery = r.db.Rebind(productQuery)
 
@@ -198,7 +196,6 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 		return nil, 0, shared.PostgresError(err)
 	}
 
-	// Return products array, the accurate count, and no error
 	return products, totalCount, nil
 }
 
