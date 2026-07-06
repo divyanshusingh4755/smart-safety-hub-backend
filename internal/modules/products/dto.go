@@ -108,8 +108,12 @@ type ProductFilters struct {
 	Status   string   `query:"status"`
 	MinPrice float64  `query:"min_price"`
 	MaxPrice float64  `query:"max_price"`
-	Page     int      `query:"page"`
-	Limit    int      `query:"limit"`
+
+	SortBy  string `query:"sort_by"`  // category | brand | created_at | name
+	SortDir string `query:"sort_dir"` // asc | desc
+
+	Page  int `query:"page"`
+	Limit int `query:"limit"`
 }
 
 type GetProductByID struct {

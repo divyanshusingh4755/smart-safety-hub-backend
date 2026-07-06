@@ -150,6 +150,11 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 	}
 
 	// Default pagination settings
+
+	if request.Page <= 0 {
+		request.Page = 1
+	}
+
 	if request.Limit <= 0 {
 		request.Limit = 50
 	}
@@ -161,9 +166,7 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
         COALESCE(c.name, '') AS category_name,
         COALESCE(media.url, '') AS image_url`
 
-	// Add LIMIT and OFFSET placeholders directly into the final string
-	productQuery := selectFields + baseQuery + whereClauses + ` 
-        ORDER BY 
+	orderBy := `
             CASE c.slug
                 WHEN 'head-protection' THEN 1
                 WHEN 'eye-protection' THEN 2
@@ -183,12 +186,51 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
                 ELSE 999 
             END ASC, 
             p.created_at DESC 
-        LIMIT ? OFFSET ?`
+	`
+	switch strings.ToLower(request.SortBy) {
+	case "brand":
+		orderBy = `
+			CASE b.slug
+				WHEN '3m' THEN 1
+				WHEN 'honeywell' THEN 2
+				WHEN 'ansell' THEN 3
+				WHEN 'delta-plus' THEN 4
+				WHEN 'portwest' THEN 5
+				WHEN 'dpl' THEN 6
+				WHEN 'atg-golves-solutions' THEN 7
+				WHEN 'bullard' THEN 8
+				WHEN 'draeger' THEN 9
+				WHEN 'msa-safety' THEN 10
+				WHEN 'tyvek' THEN 11
+				WHEN 'uvex' THEN 12
+				WHEN 'pelican' THEN 13
+				ELSE 999
+			END ASC,
+			p.created_at DESC`
+
+	case "name":
+		if strings.EqualFold(request.SortDir, "desc") {
+			orderBy = "p.name DESC"
+		} else {
+			orderBy = "p.name ASC"
+		}
+
+	case "created_at":
+		if strings.EqualFold(request.SortDir, "asc") {
+			orderBy = "p.created_at ASC"
+		} else {
+			orderBy = "p.created_at DESC"
+		}
+	}
+
+	productQuery := selectFields + baseQuery + whereClauses +
+		" ORDER BY " + orderBy +
+		" LIMIT ? OFFSET ?"
 
 	productArgs := append(args, request.Limit, offset)
 	productQuery = r.db.Rebind(productQuery)
 
-	var products []GetProducts = []GetProducts{}
+	var products []GetProducts
 	if err := r.db.SelectContext(ctx, &products, productQuery, productArgs...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []GetProducts{}, 0, nil

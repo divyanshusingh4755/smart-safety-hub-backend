@@ -75,7 +75,39 @@ func (r *BrandRepo) GetBrandBySlug(ctx context.Context, brandSlug string) (*Bran
 
 func (r *BrandRepo) GetAllBrand(limit, offset int) (*BrandList, error) {
 	var brands []Brand
-	query := "SELECT id, name, description, slug, logo_url, is_active, website_url, created_at, COUNT(*) OVER() as total_count FROM brands ORDER BY id DESC LIMIT $1 OFFSET $2"
+
+	query := `
+	SELECT
+		id,
+		name,
+		description,
+		slug,
+		logo_url,
+		is_active,
+		website_url,
+		created_at,
+		COUNT(*) OVER() AS total_count
+	FROM brands
+	ORDER BY
+		CASE slug
+			WHEN '3m' THEN 1
+			WHEN 'honeywell' THEN 2
+			WHEN 'ansell' THEN 3
+			WHEN 'delta-plus' THEN 4
+			WHEN 'portwest' THEN 5
+			WHEN 'dpl' THEN 6
+			WHEN 'atg-golves-solutions' THEN 7
+			WHEN 'bullard' THEN 8
+			WHEN 'draeger' THEN 9
+			WHEN 'msa-safety' THEN 10
+			WHEN 'tyvek' THEN 11
+			WHEN 'uvex' THEN 12
+			WHEN 'pelican' THEN 13
+			ELSE 999
+		END ASC,
+		created_at DESC
+	LIMIT $1 OFFSET $2`
+
 	if err := r.db.Select(&brands, query, limit, offset); err != nil {
 		return nil, shared.PostgresError(err)
 	}

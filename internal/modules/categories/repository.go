@@ -175,10 +175,35 @@ func (r *CategoryRepo) GetCategoryBySlug(ctx context.Context, categorySlug strin
 
 func (r *CategoryRepo) GetAllCategory(ctx context.Context) ([]CategoryWithParentName, error) {
 	var categories []CategoryWithParentName
+
 	query := `
-	        SELECT c.*, p.name AS parent_name
-	        FROM categories c
-	        LEFT JOIN categories p ON c.parent_id = p.id`
+		SELECT
+			c.*,
+			p.name AS parent_name
+		FROM categories c
+		LEFT JOIN categories p ON c.parent_id = p.id
+		ORDER BY
+			CASE c.slug
+				WHEN 'head-protection' THEN 1
+				WHEN 'eye-protection' THEN 2
+				WHEN 'hearing-protection' THEN 3
+				WHEN 'respiratory-protection' THEN 4
+				WHEN 'welding-ppe' THEN 5
+				WHEN 'high-visibility-safety-wear' THEN 6
+				WHEN 'body-protection' THEN 7
+				WHEN 'fire-resistant-clothing' THEN 8
+				WHEN 'chemical-protective-clothing' THEN 9
+				WHEN 'hand-protection' THEN 10
+				WHEN 'cut-resistant-protection' THEN 11
+				WHEN 'fall-protection' THEN 12
+				WHEN 'foot-protection' THEN 13
+				WHEN 'electrical-safety-ppe' THEN 14
+				WHEN 'first-aid-emergency' THEN 15
+				ELSE 999
+			END ASC,
+			c.created_at DESC
+	`
+
 	if err := r.db.SelectContext(ctx, &categories, query); err != nil {
 		return nil, shared.PostgresError(err)
 	}
