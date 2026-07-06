@@ -155,6 +155,8 @@ func (h *RestHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 		Brand:    query["brand"],
 		Search:   query.Get("search"),
 		Status:   status,
+		SortBy:   query.Get("sort_by"),
+		SortDir:  query.Get("sort_dir"),
 		Page:     1,
 		Limit:    50,
 	}
@@ -174,6 +176,7 @@ func (h *RestHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusBadRequest)
 	}
