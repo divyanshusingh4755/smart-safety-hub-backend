@@ -12,11 +12,13 @@ import (
 	"github.com/smart-safety-hub/backend/internal/modules/aws"
 	"github.com/smart-safety-hub/backend/internal/modules/brand"
 	"github.com/smart-safety-hub/backend/internal/modules/categories"
+	"github.com/smart-safety-hub/backend/internal/modules/contacts"
 	"github.com/smart-safety-hub/backend/internal/modules/products"
 	"github.com/smart-safety-hub/backend/internal/modules/social"
 	"github.com/smart-safety-hub/backend/internal/modules/user"
 	"github.com/smart-safety-hub/backend/shared"
 	"github.com/smart-safety-hub/backend/shared/cache"
+	"github.com/smart-safety-hub/backend/shared/mail"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -28,6 +30,15 @@ type Config struct {
 	RedisURL   string
 	PrivateKey string
 	PublicKey  string
+
+	SMTPHost      string
+	SMTPPort      string
+	SMTPUsername  string
+	SMTPPassword  string
+	SMTPFromEmail string
+	SMTPFromName  string
+
+	ContactAdminEmail string
 }
 
 type Container struct {
@@ -58,6 +69,16 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		log.Printf("failed to init product list version: %v", err)
 	}
 
+	mailer := mail.NewMailer(
+		mail.Config{
+			Host:      cfg.SMTPHost,
+			Port:      cfg.SMTPPort,
+			Username:  cfg.SMTPUsername,
+			Password:  cfg.SMTPPassword,
+			FromEmail: cfg.SMTPFromEmail,
+			FromName:  cfg.SMTPFromName,
+		},
+	)
 	// Create a shared JWT Manager
 	jwtManager, _ := shared.NewJWTManager(cfg.PrivateKey, cfg.PublicKey, l)
 	jwtMiddleware := shared.JWTMiddleware(jwtManager)
@@ -95,6 +116,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	socialService := social.NewSocialService(l, socialRepo)
 	socialRestHandler := social.NewRestHandler(socialService, v)
 
+	// Contact
+	contactRepo := contacts.NewContactRepo(sqlxDB)
+	contactService := contacts.NewContactService(l, contactRepo, mailer, cfg.ContactAdminEmail)
+	contactRestHandler := contacts.NewRestHandler(contactService, v)
+
 	// GRPC
 	grpcSrv := grpc.NewServer()
 
@@ -113,7 +139,7 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	c := cors.New(cors.Options{
 		AllowedOrigins:     []string{"http://localhost:3000", "https://smartsafetyhub.com"},
 		AllowCredentials:   true,
-		AllowedMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:     []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		OptionsPassthrough: false,
 		Debug:              true,
@@ -162,6 +188,12 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		v1.Get("/auth/social/{provider}/callback", socialRestHandler.Callback)
 		v1.Get("/auth/social/{provider}", socialRestHandler.BeginAuth)
 
+		// Contact
+		v1.Post("/contacts", contactRestHandler.CreateContact)
+
+		// ToDo:
+		// Create api of contact and request a quote and integrate it in frontend
+
 		v1.Group(func(r chi.Router) {
 			r.Use(jwtMiddleware)
 			// Protected Routes
@@ -204,6 +236,10 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			// Import Products
 			r.Post("/product/import", productRestHandler.ImportProduct)
 
+			// Contact
+			r.Get("/contacts", contactRestHandler.GetAllContacts)
+			r.Get("/contacts/{id}", contactRestHandler.GetContactByID)
+			r.Patch("/contacts/{id}/status", contactRestHandler.UpdateContactStatus)
 		})
 	})
 

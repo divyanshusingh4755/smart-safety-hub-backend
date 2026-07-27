@@ -190,6 +190,33 @@ CREATE TABLE social_accounts (
     UNIQUE(user_id, platform)
 )
 
+CREATE TABLE contacts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(150) NOT NULL,
+    company_name VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50) NOT NULL,
+    country VARCHAR(100),
+    inquiry_type VARCHAR(100),
+    product_name VARCHAR(255),
+    quantity VARCHAR(100),
+    message TEXT,
+    source VARCHAR(50) NOT NULL DEFAULT 'CONTACT_PAGE',
+    page_title TEXT,
+    page_url TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'NEW',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT contact_source_check CHECK(source IN ('CONTACT_PAGE', 'FOOTER', 'POPUP')),
+    CONSTRAINT contact_status_check CHECK(status IN ('NEW', 'CONTACTED', 'QUALIFIED', 'CLOSED', 'SPAM'))
+);
+
+CREATE INDEX idx_contacts_status ON contacts(status);
+CREATE INDEX idx_contacts_source ON contacts(source);
+CREATE INDEX idx_contacts_created_at ON contacts(created_at DESC);
+CREATE INDEX idx_contacts_phone ON contacts(phone);
+
 -- Create Indexes for faster searches
 CREATE INDEX idx_products_slug ON products(slug);
 CREATE INDEX idx_categories_slug ON categories(slug);

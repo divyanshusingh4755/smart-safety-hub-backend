@@ -41,6 +41,16 @@ func main() {
 		RedisURL:   "redis://localhost:6379/0",
 		PrivateKey: privateKey,
 		PublicKey:  publicKey,
+
+		// SMTP
+		SMTPHost:      os.Getenv("SMTP_HOST"),
+		SMTPPort:      os.Getenv("SMTP_PORT"),
+		SMTPUsername:  os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:  os.Getenv("SMTP_PASSWORD"),
+		SMTPFromEmail: os.Getenv("SMTP_FROM_EMAIL"),
+		SMTPFromName:  os.Getenv("SMTP_FROM_NAME"),
+
+		ContactAdminEmail: os.Getenv("CONTACT_ADMIN_EMAIL"),
 	}
 
 	container, close := app.Bootstrap(cfg)

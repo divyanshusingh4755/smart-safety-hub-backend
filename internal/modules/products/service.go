@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
+	"sort"
 
 	"github.com/smart-safety-hub/backend/shared/cache"
 	"go.uber.org/zap"
@@ -457,11 +457,15 @@ func (b *ProductService) invalidateListCache(ctx context.Context) {
 }
 
 func buildProductListCacheKey(r ProductFilters, version int64) string {
-	// Join slices into a single string (e.g., "3m,honeywell") so all selected options are uniquely cached
-	brands := strings.Join(r.Brand, ",")
-	categories := strings.Join(r.Category, ",")
 
-	search := url.QueryEscape(r.Search)
+	brands := append([]string{}, r.Brand...)
+	categories := append([]string{}, r.Category...)
+
+	sort.Strings(brands)
+	sort.Strings(categories)
+
+	brandJSON, _ := json.Marshal(brands)
+	categoryJSON, _ := json.Marshal(categories)
 
 	return fmt.Sprintf(
 		"products:list:v%d:p:%d:l:%d:s:%s:b:%s:c:%s:q:%s:sb:%s:sd:%s",
@@ -469,9 +473,9 @@ func buildProductListCacheKey(r ProductFilters, version int64) string {
 		r.Page,
 		r.Limit,
 		r.Status,
-		brands,
-		categories,
-		search,
+		brandJSON,
+		categoryJSON,
+		url.QueryEscape(r.Search),
 		r.SortBy,
 		r.SortDir,
 	)
