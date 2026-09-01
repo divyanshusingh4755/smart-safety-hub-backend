@@ -16,12 +16,7 @@ type ContactService struct {
 	adminEmail string
 }
 
-func NewContactService(
-	logger *zap.Logger,
-	repo *ContactRepo,
-	mailer *mail.Mailer,
-	adminEmail string,
-) *ContactService {
+func NewContactService(logger *zap.Logger, repo *ContactRepo, mailer *mail.Mailer, adminEmail string) *ContactService {
 
 	return &ContactService{
 		logger:     logger,
@@ -31,43 +26,24 @@ func NewContactService(
 	}
 }
 
-func (s *ContactService) CreateContact(
-	ctx context.Context,
-	request CreateContactRequestDTO,
-) (*CreateContactResponseDTO, error) {
+func (s *ContactService) CreateContact(ctx context.Context, request CreateContactRequestDTO) (*CreateContactResponseDTO, error) {
 	request.Name = strings.TrimSpace(request.Name)
 	request.Phone = strings.TrimSpace(request.Phone)
 
-	contact, err := s.repo.SaveContact(
-		ctx,
-		request,
-	)
+	contact, err := s.repo.SaveContact(ctx, request)
 
 	if err != nil {
-		s.logger.Error(
-			"failed to create contact enquiry",
-			zap.Error(err),
-		)
+		s.logger.Error("failed to create contact enquiry", zap.Error(err))
 
-		return nil, fmt.Errorf(
-			"error saving contact enquiry: %v",
-			err,
-		)
+		return nil, fmt.Errorf("error saving contact enquiry: %v", err)
 	}
 
 	// Send admin notification
 	adminHTML := CreateAdminContactEmail(*contact)
 	adminMessage := mail.Message{
-		To: []string{
-			s.adminEmail,
-		},
-
-		Subject: fmt.Sprintf(
-			"New Website Enquiry - %s",
-			contact.Name,
-		),
-
-		HTML: adminHTML,
+		To:      []string{s.adminEmail},
+		Subject: fmt.Sprintf("New Website Enquiry - %s", contact.Name),
+		HTML:    adminHTML,
 	}
 
 	// When customer email exists, clicking Reply will reply directly to that customer
@@ -85,28 +61,18 @@ func (s *ContactService) CreateContact(
 		customerHTML := CreateCustomerContactEmail(*contact)
 
 		if err := s.mailer.Send(mail.Message{
-			To: []string{
-				*contact.Email,
-			},
-
+			To:      []string{*contact.Email},
 			Subject: "We Received Your Enquiry | Smart Safety Hub",
-
-			HTML: customerHTML,
+			HTML:    customerHTML,
 		}); err != nil {
 			s.logger.Error("failed to send customer contact confirmation", zap.String("contact_id", contact.ID), zap.String("email", *contact.Email), zap.Error(err))
 		}
 	}
 
-	return &CreateContactResponseDTO{
-		Status:  "success",
-		Message: "Enquiry submitted successfully",
-		ID:      contact.ID,
-	}, nil
+	return &CreateContactResponseDTO{Status: "success", Message: "Enquiry submitted successfully", ID: contact.ID}, nil
 }
 
-func mapContactResponse(
-	contact Contact,
-) ContactResponseDTO {
+func mapContactResponse(contact Contact) ContactResponseDTO {
 	return ContactResponseDTO{
 		ID:          contact.ID,
 		Name:        contact.Name,
@@ -127,59 +93,34 @@ func mapContactResponse(
 	}
 }
 
-func (s *ContactService) GetContactByID(
-	ctx context.Context,
-	contactID string,
-) (*ContactResponseDTO, error) {
-	contact, err := s.repo.GetContactByID(
-		ctx,
-		contactID,
-	)
-
+func (s *ContactService) GetContactByID(ctx context.Context, contactID string) (*ContactResponseDTO, error) {
+	contact, err := s.repo.GetContactByID(ctx, contactID)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error fetching contact enquiry: %v",
-			err,
-		)
+		return nil, fmt.Errorf("error fetching contact enquiry: %v", err)
 	}
 
 	response := mapContactResponse(*contact)
 	return &response, nil
 }
 
-func (s *ContactService) GetAllContacts(
-	ctx context.Context,
-	request GetContactsQueryDTO,
-) (*GetAllContactsResponseDTO, error) {
+func (s *ContactService) GetAllContacts(ctx context.Context, request GetContactsQueryDTO) (*GetAllContactsResponseDTO, error) {
 
-	contacts, total, err := s.repo.GetAllContacts(
-		ctx,
-		request,
-	)
+	contacts, total, err := s.repo.GetAllContacts(ctx, request)
 
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error fetching contact enquiries: %v",
-			err,
-		)
+		return nil, fmt.Errorf("error fetching contact enquiries: %v", err)
 	}
 
-	responseList := make(
-		[]ContactResponseDTO,
-		len(contacts),
-	)
+	responseList := make([]ContactResponseDTO, len(contacts))
 
 	for i, contact := range contacts {
-		responseList[i] =
-			mapContactResponse(contact)
+		responseList[i] = mapContactResponse(contact)
 	}
 
 	totalPages := 0
 
 	if total > 0 {
-		totalPages =
-			(total + request.Limit - 1) /
-				request.Limit
+		totalPages = (total + request.Limit - 1) / request.Limit
 	}
 
 	return &GetAllContactsResponseDTO{
@@ -194,20 +135,9 @@ func (s *ContactService) GetAllContacts(
 	}, nil
 }
 
-func (s *ContactService) UpdateContactStatus(
-	ctx context.Context,
-	contactID string,
-	request UpdateContactStatusDTO,
-) (*GenericResponseDTO, error) {
-	if err := s.repo.UpdateContactStatus(
-		ctx,
-		contactID,
-		request.Status,
-	); err != nil {
-		return nil, fmt.Errorf(
-			"error updating contact status: %v",
-			err,
-		)
+func (s *ContactService) UpdateContactStatus(ctx context.Context, contactID string, request UpdateContactStatusDTO) (*GenericResponseDTO, error) {
+	if err := s.repo.UpdateContactStatus(ctx, contactID, request.Status); err != nil {
+		return nil, fmt.Errorf("error updating contact status: %v", err)
 	}
 
 	return &GenericResponseDTO{

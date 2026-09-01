@@ -16,15 +16,10 @@ type ContactRepo struct {
 }
 
 func NewContactRepo(db *sqlx.DB) *ContactRepo {
-	return &ContactRepo{
-		db: db,
-	}
+	return &ContactRepo{db: db}
 }
 
-func (r *ContactRepo) SaveContact(
-	ctx context.Context,
-	request CreateContactRequestDTO,
-) (*Contact, error) {
+func (r *ContactRepo) SaveContact(ctx context.Context, request CreateContactRequestDTO) (*Contact, error) {
 
 	var contact Contact
 
@@ -106,10 +101,7 @@ func (r *ContactRepo) SaveContact(
 	return &contact, nil
 }
 
-func (r *ContactRepo) GetContactByID(
-	ctx context.Context,
-	contactID string,
-) (*Contact, error) {
+func (r *ContactRepo) GetContactByID(ctx context.Context, contactID string) (*Contact, error) {
 
 	var contact Contact
 
@@ -135,12 +127,7 @@ func (r *ContactRepo) GetContactByID(
 		WHERE id = $1
 	`
 
-	if err := r.db.GetContext(
-		ctx,
-		&contact,
-		query,
-		contactID,
-	); err != nil {
+	if err := r.db.GetContext(ctx, &contact, query, contactID); err != nil {
 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("contact enquiry not found")
@@ -152,10 +139,7 @@ func (r *ContactRepo) GetContactByID(
 	return &contact, nil
 }
 
-func (r *ContactRepo) GetAllContacts(
-	ctx context.Context,
-	request GetContactsQueryDTO,
-) ([]Contact, int, error) {
+func (r *ContactRepo) GetAllContacts(ctx context.Context, request GetContactsQueryDTO) ([]Contact, int, error) {
 
 	var contacts []Contact
 
@@ -198,26 +182,14 @@ func (r *ContactRepo) GetAllContacts(
 	if request.Status != "" {
 		statusPlaceholder := addArg(request.Status)
 
-		where = append(
-			where,
-			fmt.Sprintf(
-				"status = %s",
-				statusPlaceholder,
-			),
-		)
+		where = append(where, fmt.Sprintf("status = %s", statusPlaceholder))
 	}
 
 	// Source
 	if request.Source != "" {
 		sourcePlaceholder := addArg(request.Source)
 
-		where = append(
-			where,
-			fmt.Sprintf(
-				"source = %s",
-				sourcePlaceholder,
-			),
-		)
+		where = append(where, fmt.Sprintf("source = %s", sourcePlaceholder))
 	}
 
 	whereClause := strings.Join(
@@ -225,30 +197,17 @@ func (r *ContactRepo) GetAllContacts(
 		" AND ",
 	)
 
-	// -------------------------------
 	// COUNT
-	// -------------------------------
 
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(*)
-		FROM contacts
-		WHERE %s
-	`, whereClause)
+	countQuery := fmt.Sprintf(`		SELECT COUNT(*)		FROM contacts		WHERE %s	`, whereClause)
 
 	var total int
 
-	if err := r.db.GetContext(
-		ctx,
-		&total,
-		countQuery,
-		args...,
-	); err != nil {
+	if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
 		return nil, 0, shared.PostgresError(err)
 	}
 
-	// -------------------------------
 	// PAGINATION
-	// -------------------------------
 
 	offset := (request.Page - 1) * request.Limit
 
@@ -284,38 +243,17 @@ func (r *ContactRepo) GetAllContacts(
 		offsetPlaceholder,
 	)
 
-	if err := r.db.SelectContext(
-		ctx,
-		&contacts,
-		query,
-		args...,
-	); err != nil {
+	if err := r.db.SelectContext(ctx, &contacts, query, args...); err != nil {
 		return nil, 0, shared.PostgresError(err)
 	}
 
 	return contacts, total, nil
 }
 
-func (r *ContactRepo) UpdateContactStatus(
-	ctx context.Context,
-	contactID string,
-	status string,
-) error {
-	query := `
-		UPDATE contacts
-		SET
-			status = $1,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2
-	`
+func (r *ContactRepo) UpdateContactStatus(ctx context.Context, contactID string, status string) error {
+	query := `UPDATE contacts SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2	`
 
-	result, err := r.db.ExecContext(
-		ctx,
-		query,
-		status,
-		contactID,
-	)
-
+	result, err := r.db.ExecContext(ctx, query, status, contactID)
 	if err != nil {
 		return shared.PostgresError(err)
 	}

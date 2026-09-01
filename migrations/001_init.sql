@@ -212,6 +212,46 @@ CREATE TABLE contacts (
     CONSTRAINT contact_status_check CHECK(status IN ('NEW', 'CONTACTED', 'QUALIFIED', 'CLOSED', 'SPAM'))
 );
 
+CREATE SEQUENCE quote_request_number_seq START 1;
+
+CREATE TABLE quote_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quote_number VARCHAR(50) NOT NULL UNIQUE,
+    full_name VARCHAR(100) NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    delivery_location VARCHAR(255) NOT NULL,
+    required_by DATE,
+    additional_requirements TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'NEW',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT quote_request_status_check CHECK (status IN ('NEW', 'REVIEWING', 'QUOTED', 'ACCEPTED', 'REJECTED', 'CLOSED'))
+);
+
+CREATE TABLE quote_request_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    quote_request_id UUID NOT NULL,
+    product_ref VARCHAR(255) NOT NULL,
+    product_name VARCHAR(500) NOT NULL,
+    sku VARCHAR(255),
+    image_url TEXT,
+    quantity INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_quote_request_items_quote FOREIGN KEY(quote_request_id) REFERENCES quote_requests(id) ON DELETE CASCADE,
+    CONSTRAINT quote_item_quantity_check CHECK (quantity > 0)
+);
+
+CREATE INDEX idx_quote_requests_status ON quote_requests(status);
+CREATE INDEX idx_quote_requests_email ON quote_requests(email);
+CREATE INDEX idx_quote_requests_phone ON quote_requests(phone);
+CREATE INDEX idx_quote_requests_created_at ON quote_requests(created_at DESC);
+CREATE INDEX idx_quote_request_items_quote_id on quote_request_items(quote_request_id);
+CREATE INDEX idx_quote_request_items_sku ON quote_request_items(sku);
+
 CREATE INDEX idx_contacts_status ON contacts(status);
 CREATE INDEX idx_contacts_source ON contacts(source);
 CREATE INDEX idx_contacts_created_at ON contacts(created_at DESC);

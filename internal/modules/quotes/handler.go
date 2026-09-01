@@ -1,4 +1,4 @@
-package contacts
+package quotes
 
 import (
 	"encoding/json"
@@ -11,27 +11,19 @@ import (
 )
 
 type RestHandler struct {
-	service   *ContactService
+	service   *QuoteService
 	validator *validator.Validate
 }
 
-func NewRestHandler(
-	servcie *ContactService,
-	validator *validator.Validate,
-) *RestHandler {
+func NewRestHandler(service *QuoteService, validator *validator.Validate) *RestHandler {
 	return &RestHandler{
-		service:   servcie,
+		service:   service,
 		validator: validator,
 	}
 }
 
-func (h *RestHandler) CreateContact(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	var request CreateContactRequestDTO
-
+func (h *RestHandler) CreateQuote(w http.ResponseWriter, r *http.Request) {
+	var request CreateQuoteRequestDTO
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -42,15 +34,13 @@ func (h *RestHandler) CreateContact(
 		return
 	}
 
-	response, err := h.service.CreateContact(r.Context(), request)
-
+	response, err := h.service.CreateQuote(r.Context(), request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	w.WriteHeader(http.StatusCreated)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -58,17 +48,45 @@ func (h *RestHandler) CreateContact(
 	}
 }
 
-func (h *RestHandler) GetContactByID(w http.ResponseWriter, r *http.Request) {
-
-	contactID := chi.URLParam(r, "id")
-
-	if contactID == "" {
+func (h *RestHandler) GetQuoteByID(w http.ResponseWriter, r *http.Request) {
+	quoteID := chi.URLParam(r, "id")
+	if quoteID == "" {
 		http.Error(w, "ID is required", http.StatusBadRequest)
 		return
 	}
 
-	response, err := h.service.GetContactByID(r.Context(), contactID)
+	response, err := h.service.GetQuoteByID(r.Context(), quoteID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+func (h *RestHandler) UpdateQuoteStatus(w http.ResponseWriter, r *http.Request) {
+	quoteID := chi.URLParam(r, "id")
+
+	if quoteID == "" {
+		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var request UpdateQuoteStatusDTO
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.validator.Struct(request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.service.UpdateQuoteStatus(r.Context(), quoteID, request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -77,12 +95,11 @@ func (h *RestHandler) GetContactByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "failed to encode request", http.StatusInternalServerError)
 	}
 }
 
-func (h *RestHandler) GetAllContacts(w http.ResponseWriter, r *http.Request) {
-
+func (h *RestHandler) GetAllQuotes(w http.ResponseWriter, r *http.Request) {
 	page := 1
 	limit := 20
 
@@ -93,7 +110,6 @@ func (h *RestHandler) GetAllContacts(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid page", http.StatusBadRequest)
 			return
 		}
-
 		page = parsedPage
 	}
 
@@ -108,41 +124,11 @@ func (h *RestHandler) GetAllContacts(w http.ResponseWriter, r *http.Request) {
 		limit = parsedLimit
 	}
 
-	request := GetContactsQueryDTO{Page: page, Limit: limit, Search: strings.TrimSpace(r.URL.Query().Get("search")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Source: strings.TrimSpace(r.URL.Query().Get("source"))}
-
-	if err := h.validator.Struct(request); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	response, err := h.service.GetAllContacts(r.Context(), request)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-	}
-}
-
-func (h *RestHandler) UpdateContactStatus(w http.ResponseWriter, r *http.Request) {
-
-	contactID := chi.URLParam(r, "id")
-
-	if contactID == "" {
-		http.Error(w, "ID is required", http.StatusBadRequest)
-		return
-	}
-
-	var request UpdateContactStatusDTO
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
+	request := GetQuotesQueryDTO{
+		Page:   page,
+		Limit:  limit,
+		Search: strings.TrimSpace(r.URL.Query().Get("search")),
+		Status: strings.TrimSpace(r.URL.Query().Get("status")),
 	}
 
 	if err := h.validator.Struct(request); err != nil {
@@ -150,8 +136,7 @@ func (h *RestHandler) UpdateContactStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	response, err := h.service.UpdateContactStatus(r.Context(), contactID, request)
-
+	repsone, err := h.service.GetAllQuotes(r.Context(), request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -159,7 +144,7 @@ func (h *RestHandler) UpdateContactStatus(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(repsone); err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}
 }

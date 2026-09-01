@@ -14,6 +14,7 @@ import (
 	"github.com/smart-safety-hub/backend/internal/modules/categories"
 	"github.com/smart-safety-hub/backend/internal/modules/contacts"
 	"github.com/smart-safety-hub/backend/internal/modules/products"
+	"github.com/smart-safety-hub/backend/internal/modules/quotes"
 	"github.com/smart-safety-hub/backend/internal/modules/social"
 	"github.com/smart-safety-hub/backend/internal/modules/user"
 	"github.com/smart-safety-hub/backend/shared"
@@ -61,7 +62,7 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	}
 
 	user.InitSessionStore()
-	user.InitOAuthProviders()
+	// user.InitOAuthProviders()
 	cacheStore := cache.New(redisClient)
 
 	ctx := context.Background()
@@ -120,6 +121,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	contactRepo := contacts.NewContactRepo(sqlxDB)
 	contactService := contacts.NewContactService(l, contactRepo, mailer, cfg.ContactAdminEmail)
 	contactRestHandler := contacts.NewRestHandler(contactService, v)
+
+	// Quote
+	quoteRepo := quotes.NewQuoteRepo(sqlxDB)
+	quoteService := quotes.NewQuoteService(l, quoteRepo, mailer, cfg.ContactAdminEmail)
+	quoteRestHandler := quotes.NewRestHandler(quoteService, v)
 
 	// GRPC
 	grpcSrv := grpc.NewServer()
@@ -191,6 +197,9 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		// Contact
 		v1.Post("/contacts", contactRestHandler.CreateContact)
 
+		// Quote
+		v1.Post("/quotes", quoteRestHandler.CreateQuote)
+
 		// ToDo:
 		// Create api of contact and request a quote and integrate it in frontend
 
@@ -240,6 +249,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.Get("/contacts", contactRestHandler.GetAllContacts)
 			r.Get("/contacts/{id}", contactRestHandler.GetContactByID)
 			r.Patch("/contacts/{id}/status", contactRestHandler.UpdateContactStatus)
+
+			// Quote
+			r.Get("/quotes", quoteRestHandler.GetAllQuotes)
+			r.Get("/quotes/{id}", quoteRestHandler.GetQuoteByID)
+			r.Patch("/quotes/{id}/status", quoteRestHandler.UpdateQuoteStatus)
 		})
 	})
 
