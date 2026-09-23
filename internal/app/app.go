@@ -10,6 +10,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/cors"
 	"github.com/smart-safety-hub/backend/internal/modules/aws"
+	"github.com/smart-safety-hub/backend/internal/modules/blogs"
 	"github.com/smart-safety-hub/backend/internal/modules/brand"
 	"github.com/smart-safety-hub/backend/internal/modules/categories"
 	"github.com/smart-safety-hub/backend/internal/modules/contacts"
@@ -127,6 +128,11 @@ func Bootstrap(cfg Config) (*Container, func()) {
 	quoteService := quotes.NewQuoteService(l, quoteRepo, mailer, cfg.ContactAdminEmail)
 	quoteRestHandler := quotes.NewRestHandler(quoteService, v)
 
+	// Blog
+	blogRepo := blogs.NewBlogRepo(sqlxDB)
+	blogService := blogs.NewBlogService(l, blogRepo)
+	blogRestHandler := blogs.NewRestHandler(blogService, v)
+
 	// GRPC
 	grpcSrv := grpc.NewServer()
 
@@ -200,8 +206,10 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		// Quote
 		v1.Post("/quotes", quoteRestHandler.CreateQuote)
 
-		// ToDo:
-		// Create api of contact and request a quote and integrate it in frontend
+		// Blog
+		v1.Get("/blogs/published", blogRestHandler.GetPublishedBlogs)
+		v1.Get("/blogs/pages", blogRestHandler.GetPublishedPages)
+		v1.Get("/blogs/slug/{slug}", blogRestHandler.GetBlogBySlug)
 
 		v1.Group(func(r chi.Router) {
 			r.Use(jwtMiddleware)
@@ -222,6 +230,14 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.With(shared.HasScope("catalog:create")).Post("/create-product", productRestHandler.CreateProduct)
 			r.With(shared.HasScope("catalog:update")).Patch("/update-product/{id}", productRestHandler.UpdateProduct)
 			r.With(shared.HasScope("catalog:delete")).Delete("/delete-product/{id}", productRestHandler.DeleteProduct)
+
+			// Blogs
+			r.With(shared.HasScope("catalog:create")).Post("/upload-blog-image", uploadHandler.UploadImage)
+			r.With(shared.HasScope("catalog:create")).Post("/blogs", blogRestHandler.CreateBlog)
+			r.With(shared.HasScope("catalog:update")).Patch("/blogs/{id}", blogRestHandler.UpdateBlog)
+			r.With(shared.HasScope("catalog:delete")).Delete("/blogs/{id}", blogRestHandler.DeleteBlog)
+			r.With(shared.HasScope("catalog:update")).Get("/blogs/{id}", blogRestHandler.GetBlogByID)
+			r.With(shared.HasScope("catalog:update")).Get("/blogs", blogRestHandler.GetAllBlogs)
 
 			// Product Attributes
 			r.With(shared.HasScope("catalog:update")).Post("/add-product-attribute", productRestHandler.AddProductAttribute)

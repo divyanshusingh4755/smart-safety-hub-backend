@@ -245,6 +245,25 @@ CREATE TABLE quote_request_items (
     CONSTRAINT quote_item_quantity_check CHECK (quantity > 0)
 );
 
+CREATE TABLE blogs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    type VARCHAR(20) NOT NULL DEFAULT 'post',
+    excerpt TEXT,
+    content TEXT NOT NULL,
+    featured_image TEXT,
+    meta_title VARCHAR(255),
+    meta_description TEXT,
+    is_published BOOLEAN NOT NULL DEFAULT FALSE,
+    published_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT blogs_type_check CHECK (type IN('post', 'page'))
+);
+
+CREATE INDEX idx_blogs_published ON blogs(is_published, created_at DESC);
+
 CREATE INDEX idx_quote_requests_status ON quote_requests(status);
 CREATE INDEX idx_quote_requests_email ON quote_requests(email);
 CREATE INDEX idx_quote_requests_phone ON quote_requests(phone);
