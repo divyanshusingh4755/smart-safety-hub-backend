@@ -2,6 +2,8 @@ package blogs
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -62,12 +64,27 @@ func (s *BlogService) GetBlogByID(ctx context.Context, blogID string) (*BlogResp
 }
 
 func (s *BlogService) GetBlogBySlug(ctx context.Context, slug string) (*BlogResponse, error) {
-	blog, err := s.repo.getBlogBySlug(ctx, slug)
+	blog, err := s.repo.GetBlogBySlug(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("error while getting blog from DB: %v", err)
 	}
 
-	return mapBlogResponse(blog), nil
+	response := mapBlogResponse(blog)
+	if blog.Type != "page" {
+		return response, nil
+	}
+
+	pageConfig, err := s.GetPageConfig(ctx, blog.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return response, nil
+		}
+
+		return nil, fmt.Errorf("getting landing page configuration: %w", err)
+	}
+
+	response.PageConfig = pageConfig
+	return response, nil
 }
 
 func (s *BlogService) GetAllBlogs(ctx context.Context) (*GetAllBlogs, error) {
@@ -132,4 +149,52 @@ func mapBlogResponse(blog *Blog) *BlogResponse {
 		CreatedAt:       blog.CreatedAt,
 		UpdatedAt:       blog.UpdatedAt,
 	}
+}
+
+func (s *BlogService) UpsertPageConfig(ctx context.Context, blogID string, request PageConfigRequestDTO) (*GenericResponseDTO, error) {
+	if err := s.repo.UpsertPageConfig(ctx, blogID, request); err != nil {
+		return nil, fmt.Errorf("error saving page configuration: %w", err)
+	}
+
+	return &GenericResponseDTO{
+		Status:  "success",
+		Message: "Page Configuration Saved Successfully ",
+	}, nil
+}
+
+func (s *BlogService) GetPageConfig(ctx context.Context, blogID string) (*PageConfigResponseDTO, error) {
+	config, err := s.repo.GetPageConfig(ctx, blogID)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching page configuration: %w", err)
+	}
+
+	insertions, err := s.repo.GetPageInsertions(ctx, blogID)
+	if err != nil {
+		return nil, fmt.Errorf("getting insertions: %w", err)
+	}
+
+	links, err := s.repo.GetPageInternalLinks(ctx, blogID)
+	if err != nil {
+		return nil, fmt.Errorf("getting interal links: %w", err)
+	}
+
+	images, err := s.repo.GetPageImages(ctx, blogID)
+	if err != nil {
+		return nil, fmt.Errorf("getting page images: %w", err)
+	}
+
+	return &PageConfigResponseDTO{
+		BlogID:        config.BlogID,
+		Layout:        config.Layout,
+		Market:        config.Market,
+		Hero:          config.Hero,
+		Trust:         config.Trust,
+		Components:    config.Components,
+		Sections:      config.Sections,
+		FinalCTA:      config.FinalCTA,
+		Products:      config.Products,
+		Insertions:    insertions,
+		InternalLinks: links,
+		Images:        images,
+	}, nil
 }

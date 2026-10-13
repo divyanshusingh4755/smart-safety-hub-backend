@@ -480,3 +480,26 @@ func buildProductListCacheKey(r ProductFilters, version int64) string {
 		r.SortDir,
 	)
 }
+
+func (s *ProductService) GetProductsBySlugs(ctx context.Context, slugs []string) ([]GetProductsDTO, error) {
+	products, err := s.repo.GetProductsBySlugs(ctx, slugs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get products by slugs: %w", err)
+	}
+
+	response := make([]GetProductsDTO, 0, len(products))
+	for _, product := range products {
+		response = append(response, GetProductsDTO{
+			ID:           product.ID,
+			Name:         product.Name,
+			Slug:         product.Slug,
+			Description:  product.Description,
+			Status:       product.Status,
+			CategoryName: product.CategoryName,
+			BrandName:    product.BrandName,
+			ImageURL:     product.ImageURL,
+		})
+	}
+
+	return response, nil
+}

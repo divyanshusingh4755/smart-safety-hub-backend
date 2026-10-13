@@ -262,6 +262,75 @@ CREATE TABLE blogs (
     CONSTRAINT blogs_type_check CHECK (type IN('post', 'page'))
 );
 
+CREATE TABLE blog_page_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    blog_id UUID NOT NULL UNIQUE REFERENCES blogs(id) ON DELETE CASCADE,
+    layout VARCHAR(50) NOT NULL DEFAULT 'standard',
+    market JSONB,
+    hero JSONB,
+    trust JSONB,
+    components JSONB,
+    sections JSONB,
+    final_cta JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT blog_page_layout_check CHECK (layout IN ('standard', 'country-landing'))
+);
+
+ALTER TABLE blog_page_configs ADD COLUMN IF NOT EXISTS products JSONB;
+
+CREATE TABLE blog_page_internal_links (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    blog_id UUID NOT NULL REFERENCES blogs(id) ON DELETE CASCADE,
+    text VARCHAR(255) NOT NULL,
+    href TEXT NOT NULL,
+    max_occurrences INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT blog_page_interval_links_max_occurrences_check CHECK (max_occurrences > 0)
+);
+
+CREATE TABLE blog_page_images (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    blog_id UUID NOT NULL REFERENCES blogs(id) ON DELETE CASCADE,
+    target VARCHAR(255) NOT NULL,
+    position VARCHAR(10) NOT NULL,
+    src TEXT NOT NULL,
+    alt TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT blog_page_images_position_check CHECK (position IN ('before', 'after'))
+);
+
+CREATE TABLE blog_page_insertions(
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    blog_id UUID NOT NULL REFERENCES blogs(id) ON DELETE CASCADE,
+    component VARCHAR(50) NOT NULL,
+    target VARCHAR(255) NOT NULL,
+    position VARCHAR(10) NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT blog_page_insertions_position_check CHECK (position IN ('before', 'after')),
+    CONSTRAINT blog_page_insertions_component_check CHECK (component IN ('brands', 'categories', 'whyChooseUs', 'industries', 'products', 'leadForm', 'faq'))
+);
+
+CREATE TABLE blog_page_products (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    blog_id UUID NOT NULL REFERENCES blogs(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (blog_id, product_id)
+);
+
+CREATE INDEX idx_blog_page_products_blog_id ON blog_page_products(blog_id);
+CREATE INDEX idx_blog_page_insertions_blog_id ON blog_page_instertions(blog_id);
+CREATE INDEX idx_blog_page_images_blog_id ON blog_page_images(blog_id);
+CREATE INDEX idx_blogs_page_internal_links_blog_id ON blog_page_internal_links(blog_id);
+CREATE INDEX idx_blogs_type_published ON blogs(type, is_published, published_at DESC);
 CREATE INDEX idx_blogs_published ON blogs(is_published, created_at DESC);
 
 CREATE INDEX idx_quote_requests_status ON quote_requests(status);

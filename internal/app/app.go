@@ -183,6 +183,7 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		v1.Get("/get-all-products", productRestHandler.GetAllProducts)
 		v1.Get("/products/category/{slug}", productRestHandler.GetProductsByCategory)
 		v1.Get("/products/brand/{slug}", productRestHandler.GetProductsByBrand)
+		v1.Post("/products/by-slugs", productRestHandler.GetProductsBySlugs)
 
 		// Product Attribute
 		v1.Get("/get-product-attribute/{id}", productRestHandler.GetProductAttributeByID)
@@ -238,6 +239,8 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.With(shared.HasScope("catalog:delete")).Delete("/blogs/{id}", blogRestHandler.DeleteBlog)
 			r.With(shared.HasScope("catalog:update")).Get("/blogs/{id}", blogRestHandler.GetBlogByID)
 			r.With(shared.HasScope("catalog:update")).Get("/blogs", blogRestHandler.GetAllBlogs)
+			r.With(shared.HasScope("catalog:update")).Put("/blogs/{id}/page-config", blogRestHandler.UpsertPageConfig)
+			r.With(shared.HasScope("catalog:update")).Get("/blogs/{id}/page-config", blogRestHandler.GetPageConfig)
 
 			// Product Attributes
 			r.With(shared.HasScope("catalog:update")).Post("/add-product-attribute", productRestHandler.AddProductAttribute)

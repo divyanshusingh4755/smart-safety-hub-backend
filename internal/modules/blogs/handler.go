@@ -1,7 +1,9 @@
 package blogs
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -172,4 +174,59 @@ func (h *RestHandler) GetPublishedPages(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
+}
+
+func (h *RestHandler) UpsertPageConfig(w http.ResponseWriter, r *http.Request) {
+	blogID := chi.URLParam(r, "id")
+	if blogID == "" {
+		http.Error(w, "Blog ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var request PageConfigRequestDTO
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.validator.Struct(request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.service.UpsertPageConfig(r.Context(), blogID, request)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Page not found", http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *RestHandler) GetPageConfig(w http.ResponseWriter, r *http.Request) {
+	blogID := chi.URLParam(r, "id")
+	if blogID == "" {
+		http.Error(w, "Blog ID is required", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.service.GetPageConfig(r.Context(), blogID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Page configuration not found", http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

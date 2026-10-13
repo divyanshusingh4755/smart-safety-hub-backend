@@ -469,3 +469,33 @@ func (h *RestHandler) ImportProduct(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
 }
+
+func (h *RestHandler) GetProductsBySlugs(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+
+	var request ProductsBySlugsRequest
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.validator.Struct(request); err != nil {
+		http.Error(w, "Provide between 1 and 50 valid product slugs", http.StatusBadRequest)
+		return
+	}
+
+	products, err := h.service.GetProductsBySlugs(r.Context(), request.Slugs)
+	if err != nil {
+		http.Error(w, "Failed to fetch products", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(products)
+}

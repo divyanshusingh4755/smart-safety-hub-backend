@@ -144,3 +144,7 @@ type ImportProductDTO struct {
 	Keywords           []string                `json:"keywords"`
 	SellerID           string                  `json:"seller_id"`
 }
+
+type ProductsBySlugsRequest struct {
+	Slugs []string `json:"slugs" validate:"required,min=1,max=50,dive,required"`
+}

@@ -19,6 +19,53 @@ func NewBlogRepo(db *sqlx.DB) *BlogRepo {
 	}
 }
 
+func upsertPageConfigTx(ctx context.Context, tx *sqlx.Tx, blogID string, request PageConfigRequestDTO) error {
+	query := `
+		INSERT INTO blog_page_configs (
+			blog_id, layout, market, hero, trust, components, sections, final_cta, products	
+		)
+		SELECT id, $2, $3, $4, $5, $6, $7, $8, $9
+		FROM blogs WHERE id  = $1 AND type = 'page' ON CONFLICT (blog_id) Do UPDATE SET
+			layout = EXCLUDED.layout,
+            market = EXCLUDED.market,
+            hero = EXCLUDED.hero,
+            trust = EXCLUDED.trust,
+            components = EXCLUDED.components,
+            sections = EXCLUDED.sections,
+            final_cta = EXCLUDED.final_cta,
+            products = EXCLUDED.products,
+            updated_at = CURRENT_TIMESTAMP
+		`
+
+	result, err := tx.ExecContext(
+		ctx,
+		query,
+		blogID,
+		request.Layout,
+		string(request.Market),
+		string(request.Hero),
+		string(request.Trust),
+		string(request.Components),
+		string(request.Sections),
+		string(request.FinalCTA),
+		string(request.Products),
+	)
+	if err != nil {
+		return shared.PostgresError(err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
 func (r *BlogRepo) SaveBlog(ctx context.Context, request BlogRequestDTO) error {
 	query := `
 		INSERT INTO blogs (
@@ -174,7 +221,7 @@ func (r *BlogRepo) GetBlogByID(ctx context.Context, blogID string) (*Blog, error
 	return &blog, nil
 }
 
-func (r *BlogRepo) getBlogBySlug(ctx context.Context, slug string) (*Blog, error) {
+func (r *BlogRepo) GetBlogBySlug(ctx context.Context, slug string) (*Blog, error) {
 	var blog Blog
 	query := `SELECT * FROM blogs WHERE slug = $1 AND is_published = TRUE`
 
@@ -257,4 +304,106 @@ func (r *BlogRepo) GetPublishedPages(ctx context.Context) ([]Blog, error) {
 	}
 
 	return pages, nil
+}
+
+func (r *BlogRepo) UpsertPageConfig(ctx context.Context, blogID string, request PageConfigRequestDTO) (err error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	if err := upsertPageConfigTx(ctx, tx, blogID, request); err != nil {
+		return err
+	}
+
+	// Replace component insertions
+	if _, err := tx.ExecContext(ctx, `DELETE FROM blog_page_insertions WHERE blog_id = $1`, blogID); err != nil {
+		return err
+	}
+
+	for i, item := range request.Insertions {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO blog_page_insertions(blog_id, component, target, position, sort_order)
+			VALUES ($1, $2, $3, $4, $5)
+		`, blogID, item.Component, item.Target, item.Position, i)
+
+		if err != nil {
+			return shared.PostgresError(err)
+		}
+	}
+
+	// Replace internal links
+	if _, err := tx.ExecContext(ctx, `DELETE FROM blog_page_internal_links WHERE blog_id = $1`, blogID); err != nil {
+		return err
+	}
+
+	for i, item := range request.InternalLinks {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO blog_page_internal_links (blog_id, text, href, max_occurrences, sort_order)
+			VALUES ($1, $2, $3, $4, $5)
+		`, blogID, item.Text, item.Href, item.MaxOccurrences, i)
+
+		if err != nil {
+			return shared.PostgresError(err)
+		}
+	}
+
+	// Replace content images.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM blog_page_images WHERE blog_id = $1`, blogID); err != nil {
+		return err
+	}
+
+	for i, item := range request.Images {
+		_, err := tx.ExecContext(ctx, `
+            INSERT INTO blog_page_images (blog_id, target, position, src, alt, sort_order)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, blogID, item.Target, item.Position, item.Src, item.Alt, i)
+
+		if err != nil {
+			return shared.PostgresError(err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *BlogRepo) GetPageConfig(ctx context.Context, blogID string) (*BlogPageConfig, error) {
+	var config BlogPageConfig
+	query := ` SELECT id, blog_id, layout, market, hero, trust, components, sections, final_cta, products, created_at, updated_at FROM blog_page_configs WHERE blog_id = $1 `
+
+	err := r.db.GetContext(ctx, &config, query, blogID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func (r *BlogRepo) GetPageInsertions(ctx context.Context, blogID string) ([]BlogPageInsertion, error) {
+	items := make([]BlogPageInsertion, 0)
+	err := r.db.SelectContext(ctx, &items, `
+		SELECT component, target, position, sort_order FROM blog_page_insertions WHERE blog_id = $1 ORDER BY sort_order ASC, id ASC
+	`, blogID)
+
+	return items, err
+}
+
+func (r *BlogRepo) GetPageInternalLinks(ctx context.Context, blogID string) ([]BlogPageInternalLink, error) {
+	items := make([]BlogPageInternalLink, 0)
+	err := r.db.SelectContext(ctx, &items, `
+		SELECT text, href, max_occurrences, sort_order FROM blog_page_internal_links WHERE blog_id = $1 ORDER BY sort_order ASC, id ASC
+	`, blogID)
+
+	return items, err
+}
+
+func (r *BlogRepo) GetPageImages(ctx context.Context, blogID string) ([]BlogPageImage, error) {
+	items := make([]BlogPageImage, 0)
+	err := r.db.SelectContext(ctx, &items, `
+		SELECT target, position, src, alt, sort_order FROM blog_page_images WHERE blog_id = $1 ORDER BY sort_order ASC, id ASC
+	`, blogID)
+
+	return items, err
 }

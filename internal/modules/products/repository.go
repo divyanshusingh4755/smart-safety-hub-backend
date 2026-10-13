@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/smart-safety-hub/backend/shared"
 )
 
@@ -132,10 +133,12 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 		args = append(args, inArgs...)
 	}
 
-	if request.Search != "" {
-		whereClauses += " AND (p.name ILIKE ? OR p.description ILIKE ?)"
-		searchTerm := "%" + request.Search + "%"
-		args = append(args, searchTerm, searchTerm)
+	if search := strings.TrimSpace(request.Search); search != "" {
+		whereClauses += `
+        AND (p.name ILIKE ? OR p.slug ILIKE ? OR p.description ILIKE ?)
+    `
+		searchTerm := "%" + search + "%"
+		args = append(args, searchTerm, searchTerm, searchTerm)
 	}
 
 	// 1. GET TOTAL COUNT FIRST (Arguments map completely correctly here)
@@ -515,4 +518,37 @@ func (r *ProductRepo) GetProductSEO(ctx context.Context, productId string) (*Pro
 	}
 
 	return &seo, nil
+}
+
+func (r *ProductRepo) GetProductsBySlugs(ctx context.Context, slugs []string) ([]GetProducts, error) {
+	products := make([]GetProducts, 0)
+	if len(slugs) == 0 {
+		return products, nil
+	}
+
+	query := `
+		SELECT 
+			p.id, 
+			p.name, 
+			p.slug, 
+			p.description, 
+			p.status,
+			COALESCE(b.name, '') AS brand_name,
+			COALESCE(c.name, '') AS category_name,
+			COALESCE(media.url, '') AS image_url
+		FROM unnest($1::text[]) WITH ORDINALITY AS SELECTED(slug, position)
+		JOIN products p ON p.slug = selected.slug
+		LEFT JOIN brands b ON p.brand_id = b.id
+		LEFT JOIN categories c ON p.category_id = c.id
+		LEFT JOIN LATERAL (SELECT pm.url FROM product_media pm WHERE pm.product_id = p.id
+		AND pm.type = 'image' ORDER BY pm.display_order ASC LIMIT 1) media ON true
+		WHERE p.status = 'ACTIVE' ORDER BY selected.position
+	`
+
+	// Uses postgresql array binding via lib/pg
+	err := r.db.SelectContext(ctx, &products, query, pq.Array(slugs))
+	if err != nil {
+		return nil, fmt.Errorf("fetching products by slugs: %w", err)
+	}
+	return products, nil
 }
