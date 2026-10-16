@@ -503,3 +503,7 @@ func (s *ProductService) GetProductsBySlugs(ctx context.Context, slugs []string)
 
 	return response, nil
 }
+
+func (s *ProductService) IsProductActive(ctx context.Context, productID string) (bool, error) {
+	return s.repo.IsProductActive(ctx, productID)
+}

@@ -178,24 +178,23 @@ func Bootstrap(cfg Config) (*Container, func()) {
 		v1.Get("/get-all-category", categoryRestHandler.GetAllCategory)
 
 		// Product
-		v1.Get("/get-product/id/{id}", productRestHandler.GetProductByID)
 		v1.Get("/get-product/slug/{slug}", productRestHandler.GetProductBySlug)
-		v1.Get("/get-all-products", productRestHandler.GetAllProducts)
+		v1.Get("/get-all-products", productRestHandler.GetPublicProducts)
 		v1.Get("/products/category/{slug}", productRestHandler.GetProductsByCategory)
 		v1.Get("/products/brand/{slug}", productRestHandler.GetProductsByBrand)
 		v1.Post("/products/by-slugs", productRestHandler.GetProductsBySlugs)
 
 		// Product Attribute
-		v1.Get("/get-product-attribute/{id}", productRestHandler.GetProductAttributeByID)
+		v1.With(productRestHandler.RequireActiveProduct).Get("/get-product-attribute/{id}", productRestHandler.GetProductAttributeByID)
 
 		// Product Media
-		v1.Get("/get-product-media/{id}", productRestHandler.GetProductMedia)
+		v1.With(productRestHandler.RequireActiveProduct).Get("/get-product-media/{id}", productRestHandler.GetProductMedia)
 
 		// Product Variant
-		v1.Get("/get-product-variants/{id}", productRestHandler.GetProductVariants)
+		v1.With(productRestHandler.RequireActiveProduct).Get("/get-product-variants/{id}", productRestHandler.GetProductVariants)
 
 		// Product SEO
-		v1.Get("/get-product-seo/{id}", productRestHandler.GetProductSEO)
+		v1.With(productRestHandler.RequireActiveProduct).Get("/get-product-seo/{id}", productRestHandler.GetProductSEO)
 
 		// Social
 		v1.Get("/auth/social/{provider}/callback", socialRestHandler.Callback)
@@ -228,9 +227,15 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.With(shared.HasScope("catalog:delete")).Delete("/delete-category/{id}", categoryRestHandler.DeleteCategory)
 
 			// Products
+			r.With(shared.HasScope("catalog:update")).Get("/admin/products", productRestHandler.GetAllProducts)
+			r.With(shared.HasScope("catalog:update")).Get("/get-product/id/{id}", productRestHandler.GetProductByID)
 			r.With(shared.HasScope("catalog:create")).Post("/create-product", productRestHandler.CreateProduct)
 			r.With(shared.HasScope("catalog:update")).Patch("/update-product/{id}", productRestHandler.UpdateProduct)
 			r.With(shared.HasScope("catalog:delete")).Delete("/delete-product/{id}", productRestHandler.DeleteProduct)
+			r.With(shared.HasScope("catalog:update")).Get("/admin/products/{id}/attributes", productRestHandler.GetProductAttributeByID)
+			r.With(shared.HasScope("catalog:update")).Get("/admin/products/{id}/media", productRestHandler.GetProductMedia)
+			r.With(shared.HasScope("catalog:update")).Get("/admin/products/{id}/variants", productRestHandler.GetProductVariants)
+			r.With(shared.HasScope("catalog:update")).Get("/admin/products/{id}/seo", productRestHandler.GetProductSEO)
 
 			// Blogs
 			r.With(shared.HasScope("catalog:create")).Post("/upload-blog-image", uploadHandler.UploadImage)
@@ -255,24 +260,24 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.With(shared.HasScope("catalog:update")).Post("/add-product-seo/{id}", productRestHandler.SaveProductSEO)
 
 			// Social
-			r.Get("/auth/social/{provider}/prepare", socialRestHandler.PrepareAuth)
-			r.Get("/auth/social/connections", socialRestHandler.HandleListConnections)
+			r.With(shared.HasScope("catalog:update")).Get("/auth/social/{provider}/prepare", socialRestHandler.PrepareAuth)
+			r.With(shared.HasScope("catalog:update")).Get("/auth/social/connections", socialRestHandler.HandleListConnections)
 
 			// Create post
-			r.Post("/posts/create", socialRestHandler.HandleCreatePost)
+			r.With(shared.HasScope("catalog:update")).Post("/posts/create", socialRestHandler.HandleCreatePost)
 
 			// Import Products
-			r.Post("/product/import", productRestHandler.ImportProduct)
+			r.With(shared.HasScope("catalog:create")).Post("/product/import", productRestHandler.ImportProduct)
 
 			// Contact
-			r.Get("/contacts", contactRestHandler.GetAllContacts)
-			r.Get("/contacts/{id}", contactRestHandler.GetContactByID)
-			r.Patch("/contacts/{id}/status", contactRestHandler.UpdateContactStatus)
+			r.With(shared.HasScope("catalog:update")).Get("/contacts", contactRestHandler.GetAllContacts)
+			r.With(shared.HasScope("catalog:update")).Get("/contacts/{id}", contactRestHandler.GetContactByID)
+			r.With(shared.HasScope("catalog:update")).Patch("/contacts/{id}/status", contactRestHandler.UpdateContactStatus)
 
 			// Quote
-			r.Get("/quotes", quoteRestHandler.GetAllQuotes)
-			r.Get("/quotes/{id}", quoteRestHandler.GetQuoteByID)
-			r.Patch("/quotes/{id}/status", quoteRestHandler.UpdateQuoteStatus)
+			r.With(shared.HasScope("catalog:update")).Get("/quotes", quoteRestHandler.GetAllQuotes)
+			r.With(shared.HasScope("catalog:update")).Get("/quotes/{id}", quoteRestHandler.GetQuoteByID)
+			r.With(shared.HasScope("catalog:update")).Patch("/quotes/{id}/status", quoteRestHandler.UpdateQuoteStatus)
 		})
 	})
 

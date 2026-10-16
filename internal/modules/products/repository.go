@@ -552,3 +552,10 @@ func (r *ProductRepo) GetProductsBySlugs(ctx context.Context, slugs []string) ([
 	}
 	return products, nil
 }
+
+func (r *ProductRepo) IsProductActive(ctx context.Context, productID string) (bool, error) {
+	var active bool
+	err := r.db.GetContext(ctx, &active, `SELECT EXISTS (SELECT 1 FROM products WHERE id::text = $1 AND status = 'ACTIVE')`, productID)
+
+	return active, err
+}

@@ -195,16 +195,13 @@ func (h *RestHandler) GetProductsByCategory(w http.ResponseWriter, r *http.Reque
 		limit = l
 	}
 
-	status := r.URL.Query().Get("status")
-	if status == "" {
-		status = "ACTIVE"
-	}
-
 	request := ProductFilters{
 		Category: []string{slug},
 		Page:     page,
 		Limit:    limit,
-		Status:   status,
+		Status:   "ACTIVE",
+		SortBy:   r.URL.Query().Get("sort_by"),
+		SortDir:  r.URL.Query().Get("sort_dir"),
 	}
 
 	response, err := h.service.GetAllProducts(r.Context(), request)
@@ -230,16 +227,13 @@ func (h *RestHandler) GetProductsByBrand(w http.ResponseWriter, r *http.Request)
 		limit = l
 	}
 
-	status := r.URL.Query().Get("status")
-	if status == "" {
-		status = "ACTIVE"
-	}
-
 	request := ProductFilters{
-		Brand:  []string{slug},
-		Page:   page,
-		Limit:  limit,
-		Status: status,
+		Brand:   []string{slug},
+		Page:    page,
+		Limit:   limit,
+		Status:  "ACTIVE",
+		SortBy:  r.URL.Query().Get("sort_by"),
+		SortDir: r.URL.Query().Get("sort_dir"),
 	}
 
 	response, err := h.service.GetAllProducts(r.Context(), request)
@@ -498,4 +492,61 @@ func (h *RestHandler) GetProductsBySlugs(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(products)
+}
+
+func (h *RestHandler) GetPublicProducts(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	request := ProductFilters{
+		Category: query["category"],
+		Brand:    query["brand"],
+		Search:   query.Get("Search"),
+		Status:   "ACTIVE",
+		SortBy:   query.Get("sort_by"),
+		SortDir:  query.Get("sort_dir"),
+		Page:     1,
+		Limit:    50,
+	}
+
+	if p, err := strconv.Atoi(query.Get("page")); err == nil && p > 0 {
+		request.Page = p
+	}
+
+	if l, err := strconv.Atoi(query.Get("limit")); err == nil && l > 0 {
+		request.Limit = l
+	}
+
+	response, err := h.service.GetAllProducts(r.Context(), request)
+	if err != nil {
+		http.Error(w, "Failed to fetch products", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		return
+	}
+}
+
+func (h *RestHandler) RequireActiveProduct(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		productID := chi.URLParam(r, "id")
+		if productID == "" {
+			http.Error(w, "Product not found", http.StatusNotFound)
+			return
+		}
+
+		active, err := h.service.IsProductActive(r.Context(), productID)
+		if err != nil {
+			http.Error(w, "Failed to check product", http.StatusInternalServerError)
+			return
+		}
+
+		if !active {
+			http.Error(w, "Product not found", http.StatusNotFound)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
