@@ -38,14 +38,16 @@ type ProductListResponse struct {
 }
 
 type GetProductsDTO struct {
-	ID           string        `json:"id"`
-	Name         string        `json:"name"`
-	Slug         string        `json:"slug"`
-	Description  *string       `json:"description"`
-	BrandName    string        `json:"brand_name"`
-	CategoryName string        `json:"category_name"`
-	Status       ProductStatus `json:"status"`
-	ImageURL     *string       `json:"image_url"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Slug         string            `json:"slug"`
+	Description  *string           `json:"description"`
+	BrandName    string            `json:"brand_name"`
+	CategoryName string            `json:"category_name"`
+	Status       ProductStatus     `json:"status"`
+	ImageURL     *string           `json:"image_url"`
+	Media        []ProductMediaDTO `json:"media"`
+	Variants     []ProductVariant  `json:"variants"`
 }
 
 type ProductVariant struct {

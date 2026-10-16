@@ -3,6 +3,7 @@ package products
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -244,6 +245,52 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 	return products, totalCount, nil
 }
 
+func (r *ProductRepo) GetProductMediaForListing(ctx context.Context, productIDs []string) (map[string][]ProductMediaDTO, error) {
+	result := make(map[string][]ProductMediaDTO)
+	if len(productIDs) == 0 {
+		return result, nil
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT id, product_id, variant_id, url, type, COALESCE(display_order, 0) AS display_order FROM product_media
+		WHERE product_id IN (?) AND type = 'image' ORDER BY product_id, display_order ASC
+	`, productIDs)
+
+	if err != nil {
+		return nil, err
+	}
+
+	query = r.db.Rebind(query)
+
+	type mediaRow struct {
+		ID           *string     `db:"id"`
+		ProductID    string      `db:"product_id"`
+		VariantID    *string     `db:"variant_id"`
+		URL          string      `db:"url"`
+		MediaType    ProductType `db:"type"`
+		DisplayOrder int         `db:"display_order"`
+	}
+
+	var rows []mediaRow
+
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		result[row.ProductID] = append(result[row.ProductID], ProductMediaDTO{
+			ID:           row.ID,
+			ProductID:    row.ProductID,
+			VariantID:    row.VariantID,
+			Url:          row.URL,
+			MediaType:    row.MediaType,
+			DisplayOrder: row.DisplayOrder,
+		})
+	}
+
+	return result, nil
+}
+
 func (r *ProductRepo) AddProductAttribute(ctx context.Context, productID string, request []ProductAttributeArrayDTO) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -407,6 +454,83 @@ func (r *ProductRepo) GetProductVariants(ctx context.Context, productId string) 
 	}
 
 	return &result, nil
+}
+
+func (r *ProductRepo) GetProductVariantForListing(ctx context.Context, productIDs []string) (map[string][]ProductVariant, error) {
+	result := make(map[string][]ProductVariant)
+	if len(productIDs) == 0 {
+		return result, nil
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT
+		    pv.product_id,
+		    pv.id,
+		    pv.sku,
+		    pv.price,
+		    pv.weight,
+		    pv.is_active,
+		    COALESCE(
+		        jsonb_agg(pov.value ORDER BY po.name, pov.value)
+		            FILTER (WHERE pov.id IS NOT NULL),
+		        '[]'::jsonb
+		    ) AS option_values
+		FROM product_variants pv
+		LEFT JOIN variant_option_values vov
+		    ON vov.variant_id = pv.id
+		LEFT JOIN product_option_values pov
+		    ON pov.id = vov.option_value_id
+		LEFT JOIN product_options po
+		    ON po.id = pov.option_id
+		WHERE pv.product_id IN (?)
+		GROUP BY
+		    pv.product_id,
+		    pv.id,
+		    pv.sku,
+		    pv.price,
+		    pv.weight,
+		    pv.is_active
+		ORDER BY pv.product_id, pv.sku
+	`, productIDs)
+
+	if err != nil {
+		return nil, err
+	}
+
+	query = r.db.Rebind(query)
+
+	type variantRow struct {
+		ProductID    string          `db:"product_id"`
+		ID           string          `db:"id"`
+		SKU          string          `db:"sku"`
+		Price        float64         `db:"price"`
+		Weight       float64         `db:"weight"`
+		IsActive     bool            `db:"is_active"`
+		OptionValues json.RawMessage `db:"option_values"`
+	}
+
+	var rows []variantRow
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		var values []string
+		if err := json.Unmarshal(row.OptionValues, &values); err != nil {
+			return nil, fmt.Errorf("failed to decode option values for variant %s: %w", row.ID, err)
+		}
+
+		variantID := row.ID
+		result[row.ProductID] = append(result[row.ProductID], ProductVariant{
+			ID:           &variantID,
+			SKU:          row.SKU,
+			Price:        row.Price,
+			Weight:       row.Weight,
+			IsActive:     row.IsActive,
+			OptionValues: values,
+		})
+	}
+	return result, nil
 }
 
 func (r *ProductRepo) AddProductMedia(ctx context.Context, productId string, media []ProductMediaDTO) error {

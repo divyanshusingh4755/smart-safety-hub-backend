@@ -500,7 +500,7 @@ func (h *RestHandler) GetPublicProducts(w http.ResponseWriter, r *http.Request) 
 	request := ProductFilters{
 		Category: query["category"],
 		Brand:    query["brand"],
-		Search:   query.Get("Search"),
+		Search:   query.Get("search"),
 		Status:   "ACTIVE",
 		SortBy:   query.Get("sort_by"),
 		SortDir:  query.Get("sort_dir"),
@@ -517,6 +517,7 @@ func (h *RestHandler) GetPublicProducts(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response, err := h.service.GetAllProducts(r.Context(), request)
+	fmt.Println("err", err)
 	if err != nil {
 		http.Error(w, "Failed to fetch products", http.StatusInternalServerError)
 		return

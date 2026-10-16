@@ -146,6 +146,14 @@ func (b *ProductService) GetProductBySlug(ctx context.Context, slug string) (*Pr
 }
 
 func (b *ProductService) GetAllProducts(ctx context.Context, request ProductFilters) (*ProductListResponse, error) {
+	if request.Page <= 0 {
+		request.Page = 1
+	}
+
+	if request.Limit <= 0 {
+		request.Limit = 50
+	}
+
 	version := b.cache.GetVersion(ctx)
 	cacheKey := buildProductListCacheKey(request, version)
 
@@ -154,13 +162,42 @@ func (b *ProductService) GetAllProducts(ctx context.Context, request ProductFilt
 		return &cached, nil
 	}
 
-	resp, totalCount, err := b.repo.GetAllProducts(ctx, request)
+	products, totalCount, err := b.repo.GetAllProducts(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("Error came while getting data from DB: %v", err)
 	}
 
-	productsDTO := make([]GetProductsDTO, 0, len(resp))
-	for _, data := range resp {
+	// Collect product IDs for batch queries
+	productIDs := make([]string, 0, len(products))
+	for _, product := range products {
+		productIDs = append(productIDs, product.ID)
+	}
+
+	// Fetch all images for these products
+	mediaByProduct, err := b.repo.GetProductMediaForListing(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch product listing media: %w")
+	}
+
+	// Fetch all variants for these products
+	variantsByProduct, err := b.repo.GetProductVariantForListing(ctx, productIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch product variants: %w", err)
+	}
+
+	// Build frontend response
+	productsDTO := make([]GetProductsDTO, 0, len(products))
+	for _, data := range products {
+		media := mediaByProduct[data.ID]
+		if media == nil {
+			media = []ProductMediaDTO{}
+		}
+
+		variants := variantsByProduct[data.ID]
+		if variants == nil {
+			variants = []ProductVariant{}
+		}
+
 		productsDTO = append(productsDTO, GetProductsDTO{
 			ID:           data.ID,
 			Name:         data.Name,
@@ -170,6 +207,8 @@ func (b *ProductService) GetAllProducts(ctx context.Context, request ProductFilt
 			CategoryName: data.CategoryName,
 			BrandName:    data.BrandName,
 			ImageURL:     data.ImageURL,
+			Media:        media,
+			Variants:     variants,
 		})
 	}
 
