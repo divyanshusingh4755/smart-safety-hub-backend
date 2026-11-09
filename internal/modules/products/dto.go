@@ -48,6 +48,8 @@ type GetProductsDTO struct {
 	ImageURL     *string           `json:"image_url"`
 	Media        []ProductMediaDTO `json:"media"`
 	Variants     []ProductVariant  `json:"variants"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
 }
 
 type ProductVariant struct {

@@ -33,7 +33,19 @@ func (r *ProductRepo) SaveProduct(ctx context.Context, request ProductRequestDTO
 }
 
 func (r *ProductRepo) UpdateProduct(ctx context.Context, productID string, request ProductRequestDTO) error {
-	query := "UPDATE products SET name=COALESCE(NULLIF($1, ''), name), slug=COALESCE(NULLIF($2, ''), slug), description=COALESCE(NULLIF($3, ''), description), seller_id=COALESCE(NULLIF($4, '')::UUID, seller_id), brand_id=COALESCE(NULLIF($5, '')::UUID, brand_id), category_id=COALESCE(NULLIF($6, '')::UUID, category_id), status=COALESCE(NULLIF($7, '')::status_enum, status) WHERE id=$8"
+	query := `
+    UPDATE products
+    SET
+        name = COALESCE(NULLIF($1, ''), name),
+        slug = COALESCE(NULLIF($2, ''), slug),
+        description = COALESCE(NULLIF($3, ''), description),
+        seller_id = COALESCE(NULLIF($4, '')::UUID, seller_id),
+        brand_id = COALESCE(NULLIF($5, '')::UUID, brand_id),
+        category_id = COALESCE(NULLIF($6, '')::UUID, category_id),
+        status = COALESCE(NULLIF($7, '')::status_enum, status),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $8
+`
 	if _, err := r.db.ExecContext(ctx, query, request.Name, request.Slug, request.Description, request.SellerID, request.BrandID, request.CategoryID, request.Status, productID); err != nil {
 		return shared.PostgresError(err)
 	}
@@ -165,7 +177,14 @@ func (r *ProductRepo) GetAllProducts(ctx context.Context, request ProductFilters
 	offset := (request.Page - 1) * request.Limit
 
 	// 2. GET THE ACTUAL PRODUCTS FOR THIS PAGE
-	selectFields := `SELECT p.id, p.name, p.slug, p.description, p.status,
+	selectFields := `SELECT
+        p.id,
+        p.name,
+        p.slug,
+        p.description,
+        p.status,
+        p.created_at,
+        p.updated_at,
         COALESCE(b.name, '') AS brand_name,
         COALESCE(c.name, '') AS category_name,
         COALESCE(media.url, '') AS image_url`
@@ -615,11 +634,29 @@ func (r *ProductRepo) SaveProductSEO(ctx context.Context, seo ProductSEO, isPubl
 	}
 
 	if shouldPublish {
-		publishProduct := `UPDATE products SET status = 'ACTIVE' WHERE id = $1`
+		publishProduct := `
+        UPDATE products
+        SET status = 'ACTIVE'
+        WHERE id = $1
+    `
+
 		_, err = tx.ExecContext(ctx, publishProduct, seo.ProductID)
 		if err != nil {
 			return shared.PostgresError(err)
 		}
+	}
+
+	// Update product modification timestamp after saving SEO
+	_, err = tx.ExecContext(
+		ctx,
+		`UPDATE products
+		SET updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1`,
+		seo.ProductID,
+	)
+
+	if err != nil {
+		return shared.PostgresError(err)
 	}
 
 	if err := tx.Commit(); err != nil {

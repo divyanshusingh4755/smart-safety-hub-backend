@@ -209,6 +209,8 @@ func (b *ProductService) GetAllProducts(ctx context.Context, request ProductFilt
 			ImageURL:     data.ImageURL,
 			Media:        media,
 			Variants:     variants,
+			CreatedAt:    data.CreatedAt,
+			UpdatedAt:    data.UpdatedAt,
 		})
 	}
 

@@ -52,6 +52,8 @@ type GetProducts struct {
 	Status       ProductStatus `db:"status"`
 	ImageURL     *string       `db:"image_url"`
 	TotalCount   int           `db:"total_count"`
+	CreatedAt    time.Time     `db:"created_at"`
+	UpdatedAt    time.Time     `db:"updated_at"`
 }
 
 type ProductAttribute struct {
