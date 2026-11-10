@@ -231,6 +231,8 @@ func Bootstrap(cfg Config) (*Container, func()) {
 			r.With(shared.HasScope("catalog:update")).Get("/get-product/id/{id}", productRestHandler.GetProductByID)
 			r.With(shared.HasScope("catalog:create")).Post("/create-product", productRestHandler.CreateProduct)
 			r.With(shared.HasScope("catalog:update")).Patch("/update-product/{id}", productRestHandler.UpdateProduct)
+
+			r.With(shared.HasScope("catalog:update")).Post("/update-content-by-slug", productRestHandler.UpdateContentBySlug)
 			r.With(shared.HasScope("catalog:delete")).Delete("/delete-product/{id}", productRestHandler.DeleteProduct)
 			r.With(shared.HasScope("catalog:update")).Get("/admin/products/{id}/attributes", productRestHandler.GetProductAttributeByID)
 			r.With(shared.HasScope("catalog:update")).Get("/admin/products/{id}/media", productRestHandler.GetProductMedia)
