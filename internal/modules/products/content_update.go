@@ -61,8 +61,10 @@ func (r *ProductRepo) UpdateContentBySlug(ctx context.Context, req UpdateContent
 	// Update only name and description. All other product fields remain untouched
 	result, err := tx.ExecContext(
 		ctx,
-		`UPDATE products SET
-		name = $1, description = $2, updated = CURRENT_TIMESTAMP 
+		`UPDATE products
+		SET name = $1,
+			description = $2,
+			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $3`,
 		req.Name,
 		req.Description,
